@@ -7,7 +7,7 @@ import os
 
 class MNISTConvolutionModel(object):
   def __init__(self, input_width, input_height, input_channel, output_size,
-      model_name='MNISTConvolutionModel', learning_rate=1e-4,
+      model_name='MNISTConvolutionModel', learning_rate=1e-3,
       decay=0.9, saving=True):
     # logger
     logging.basicConfig()
