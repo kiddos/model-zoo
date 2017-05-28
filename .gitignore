@@ -1,0 +1,6 @@
+*.csv
+*.pyc
+*.swp
+*.swo
+*.sqlite3
+*.sqlite
