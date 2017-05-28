@@ -64,9 +64,9 @@ class MNISTConvolutionModel(object):
     with tf.name_scope('conv1'):
       h1_size = 32
       w = tf.get_variable(name='conv_w1',
-        shape=[5, 5, input_channel, h1_size],
+        shape=[7, 7, input_channel, h1_size],
         dtype=tf.float32,
-        initializer=tf.random_normal_initializer(stddev=0.01))
+        initializer=tf.random_normal_initializer(stddev=0.025))
       b = tf.get_variable(name='conv_b1', shape=[h1_size],
         dtype=tf.float32,
         initializer=tf.constant_initializer(value=1e-3))
@@ -80,7 +80,7 @@ class MNISTConvolutionModel(object):
       w = tf.get_variable(name='conv_w2',
         shape=[5, 5, h1_size, h2_size],
         dtype=tf.float32,
-        initializer=tf.random_normal_initializer(stddev=0.01))
+        initializer=tf.random_normal_initializer(stddev=0.05))
       b = tf.get_variable(name='conv_b2', shape=[h2_size],
         dtype=tf.float32,
         initializer=tf.constant_initializer(value=1e-3))
@@ -90,11 +90,11 @@ class MNISTConvolutionModel(object):
         padding='SAME')
       h = tf.nn.dropout(h, keep_prob)
     with tf.name_scope('conv3'):
-      h3_size = 32
+      h3_size = 64
       w = tf.get_variable(name='conv_w3',
         shape=[5, 5, h2_size, h3_size],
         dtype=tf.float32,
-        initializer=tf.random_normal_initializer(stddev=0.01))
+        initializer=tf.random_normal_initializer(stddev=0.03))
       b = tf.get_variable(name='conv_b3', shape=[h3_size],
         dtype=tf.float32,
         initializer=tf.constant_initializer(value=1e-3))
@@ -104,32 +104,67 @@ class MNISTConvolutionModel(object):
         padding='SAME')
       h = tf.nn.dropout(h, keep_prob)
     with tf.name_scope('conv4'):
-      h4_size = 32
+      h4_size = 64
       w = tf.get_variable(name='conv_w4',
         shape=[5, 5, h3_size, h4_size],
         dtype=tf.float32,
-        initializer=tf.random_normal_initializer(stddev=0.01))
+        initializer=tf.random_normal_initializer(stddev=0.03))
       b = tf.get_variable(name='conv_b4', shape=[h4_size],
         dtype=tf.float32,
         initializer=tf.constant_initializer(value=1e-3))
       h = tf.nn.relu(tf.nn.conv2d(h, w, strides=[1, 1, 1, 1],
         padding='SAME') + b)
       h = tf.nn.dropout(h, keep_prob)
-    with tf.name_scope('fc5'):
+    with tf.name_scope('conv5'):
+      h5_size = 64
+      w = tf.get_variable(name='conv_w5',
+        shape=[5, 5, h4_size, h5_size],
+        dtype=tf.float32,
+        initializer=tf.random_normal_initializer(stddev=0.03))
+      b = tf.get_variable(name='conv_b5', shape=[h5_size],
+        dtype=tf.float32,
+        initializer=tf.constant_initializer(value=1e-3))
+      h = tf.nn.relu(tf.nn.conv2d(h, w, strides=[1, 1, 1, 1],
+        padding='SAME') + b)
+      h = tf.nn.dropout(h, keep_prob)
+    with tf.name_scope('conv6'):
+      h6_size = 64
+      w = tf.get_variable(name='conv_w6',
+        shape=[5, 5, h5_size, h6_size],
+        dtype=tf.float32,
+        initializer=tf.random_normal_initializer(stddev=0.03))
+      b = tf.get_variable(name='conv_b6', shape=[h4_size],
+        dtype=tf.float32,
+        initializer=tf.constant_initializer(value=1e-3))
+      h = tf.nn.relu(tf.nn.conv2d(h, w, strides=[1, 1, 1, 1],
+        padding='SAME') + b)
+      h = tf.nn.dropout(h, keep_prob)
+    with tf.name_scope('fc7'):
       h_shape = h.get_shape().as_list()
       connect_size = h_shape[1] * h_shape[2] * h_shape[3]
-      h5_size = 1024
-      w = tf.get_variable(name='w3',
-        shape=[connect_size, h5_size],
+      h7_size = 1024
+      w = tf.get_variable(name='w7',
+        shape=[connect_size, h7_size],
         dtype=tf.float32,
         initializer=tf.random_normal_initializer(
           stddev=np.sqrt(2.0 / connect_size)))
-      b = tf.get_variable(name='b3', shape=[h5_size],
+      b = tf.get_variable(name='b7', shape=[h7_size],
         dtype=tf.float32,
         initializer=tf.constant_initializer(value=1e-3))
       h = tf.nn.relu(tf.matmul(tf.reshape(h, [-1, connect_size]), w) + b)
+    with tf.name_scope('fc8'):
+      h8_size = 256
+      w = tf.get_variable(name='w8',
+        shape=[h7_size, h8_size],
+        dtype=tf.float32,
+        initializer=tf.random_normal_initializer(
+          stddev=np.sqrt(2.0 / connect_size)))
+      b = tf.get_variable(name='b8', shape=[h8_size],
+        dtype=tf.float32,
+        initializer=tf.constant_initializer(value=1e-3))
+      h = tf.nn.relu(tf.matmul(h, w) + b)
     with tf.name_scope('output'):
-      w = tf.get_variable(name='ow', shape=[h5_size, output_size],
+      w = tf.get_variable(name='ow', shape=[h8_size, output_size],
         dtype=tf.float32,
         initializer=tf.random_normal_initializer(
           stddev=np.sqrt(2.0 / h5_size)))
