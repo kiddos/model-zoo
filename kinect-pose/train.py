@@ -36,6 +36,7 @@ def main():
     model.train_with_loader(sess, data_loader,
       batch_size=args.batch_size,
       output_period=args.output_epoch,
+      decay_epoch=args.decay_epoch,
       keep_prob=args.keep_prob,
       max_epoch=args.max_epoch)
 
