@@ -26,7 +26,7 @@ def main():
 
   input_width = 640
   input_height = 480
-  input_channel = 3
+  input_channel = 1
   output_size = 7
 
   model = KinectPoseModel(input_width, input_height, input_channel,
