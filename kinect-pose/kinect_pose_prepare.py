@@ -6,7 +6,6 @@ import sqlite3
 import matplotlib.pyplot as plt
 from argparse import ArgumentParser
 
-
 logging.basicConfig()
 logger = logging.getLogger('kinect_pose_prepare')
 logger.setLevel(logging.INFO)
@@ -27,14 +26,14 @@ def load_label(path):
   return np.array(data)
 
 
-def load_all_images(folder):
+def load_all_images(folder, flag):
   images = []
   if os.path.isdir(folder):
     logger.info('loading images from %s' % (folder))
     images_path = os.listdir(folder)
     for image_name in images_path:
       image_path = os.path.join(folder, image_name)
-      img = cv2.imread(image_path)
+      img = cv2.imread(image_path, flag)
       images.append([float(image_name[:-4]), img])
   return images
 
@@ -82,6 +81,7 @@ def save(images, label, table_name, dbname):
 
   for i in range(len(images)):
     img = images[i, :]
+    img = img.reshape(img.shape[0], img.shape[1], -1)
     l = label[i, :]
     cursor.execute("""INSERT INTO %s(image, width, height, channel,
       tx, ty, tz, qx, qy, qz, qw)
@@ -173,8 +173,8 @@ def main():
 
   args = parser.parse_args()
   label = load_label(args.label)
-  depth_data = load_all_images(args.depth)
-  rgb_data = load_all_images(args.rgb)
+  depth_data = load_all_images(args.depth, cv2.IMREAD_ANYDEPTH)
+  rgb_data = load_all_images(args.rgb, cv2.IMREAD_COLOR)
 
   depth_data, depth_label = associate_labels(depth_data, label)
   rgb_data, rgb_label = associate_labels(rgb_data, label)
@@ -184,4 +184,4 @@ def main():
 
 
 if __name__ == '__main__':
-  test()
+  main()
