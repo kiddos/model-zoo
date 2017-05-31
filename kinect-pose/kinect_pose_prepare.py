@@ -104,8 +104,11 @@ class FreiburgData(object):
       rgb_raw_data = cursor.fetchall()
       connection.close()
 
-      self.depth_images, self.depth_labels = self._parse(depth_raw_data)
-      self.rgb_images, self.rgb_labels = self._parse(rgb_raw_data)
+      logger.info('loading depth images...')
+      self.depth_images, self.depth_labels = self._parse(depth_raw_data,
+          np.uint16)
+      logger.info('loading rgb images...')
+      self.rgb_images, self.rgb_labels = self._parse(rgb_raw_data, np.uint8)
       logger.info('depth images data shape: %s' %
         (str(self.depth_images.shape)))
       logger.info('depth labels data shape: %s' %
@@ -115,12 +118,12 @@ class FreiburgData(object):
       logger.info('rgb labels data shape: %s' %
         (str(self.rgb_labels.shape)))
 
-  def _parse(self, raw_data):
+  def _parse(self, raw_data, dtype):
     images = []
     labels = []
     for i in range(len(raw_data)):
       d = raw_data[i]
-      img = np.array(d[1], dtype=np.uint8).reshape(d[3], d[2], d[4])
+      img = np.frombuffer(d[1], dtype=dtype).reshape(d[3], d[2], d[4])
       l = d[5:]
       images.append(img)
       labels.append(l)
@@ -136,8 +139,8 @@ class FreiburgData(object):
 
     index1 = index1[:batch_size]
     index2 = index2[:batch_size]
-    prev_images = self.depth_images[index1, :]
-    next_images = self.depth_images[index2, :]
+    prev_images = self.depth_images[index1, :] / 5000.0
+    next_images = self.depth_images[index2, :] / 5000.0
     prev_labels = self.depth_labels[index1, :]
     next_labels = self.depth_labels[index2, :]
     #  print(prev_labels, next_labels)
@@ -176,6 +179,8 @@ def main():
   depth_data = load_all_images(args.depth, cv2.IMREAD_ANYDEPTH)
   rgb_data = load_all_images(args.rgb, cv2.IMREAD_COLOR)
 
+  print(depth_data[0])
+
   depth_data, depth_label = associate_labels(depth_data, label)
   rgb_data, rgb_label = associate_labels(rgb_data, label)
 
@@ -184,4 +189,4 @@ def main():
 
 
 if __name__ == '__main__':
-  main()
+  test()
