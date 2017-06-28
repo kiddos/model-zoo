@@ -22,11 +22,11 @@ class KinectPoseModel(object):
     # checkpoint
     self.start_epoch = 0
     self.saving = saving
+    self.saver = tf.train.Saver()
     if saving:
       self.checkpoint_path, summary_path = self._prepare_save_dir(model_name)
       # saver
       self.logger.info('setting up saver...')
-      self.saver = tf.train.Saver()
       # summary writer
       self.logger.info('setting up summary writer...')
       self.summary_writer = tf.summary.FileWriter(summary_path,
