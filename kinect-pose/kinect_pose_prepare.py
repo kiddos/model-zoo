@@ -32,6 +32,7 @@ def load_all_images(folder, flag):
     logger.info('loading images from %s' % (folder))
     images_path = sorted(os.listdir(folder))
     for image_name in images_path:
+      print(image_name)
       image_path = os.path.join(folder, image_name)
       img = cv2.imread(image_path, flag)
       images.append([float(image_name[:-4]), img])
@@ -148,17 +149,6 @@ class FreiburgData(object):
     return prev_images, next_images, labels
 
 
-
-def test():
-  data_loader = FreiburgData('freiburg1_xyz.sqlite3')
-  p, n, l = data_loader.diff_depth_batch(256)
-  #  l *= 1e3
-  print(p.shape, n.shape, l.shape)
-  print(l[:10, :])
-  #  assert data_loader.
-
-
-
 def main():
   parser = ArgumentParser()
   parser.add_argument('--depth-images', dest='depth',
@@ -173,20 +163,30 @@ def main():
   parser.add_argument('--output-db', dest='dbname',
     default='freiburg1_xyz.sqlite3',
     help='ground truth label')
-
+  parser.add_argument('--mode', dest='mode',
+    default='create',
+    help='mode (test/create)')
   args = parser.parse_args()
-  label = load_label(args.label)
-  depth_data = load_all_images(args.depth, cv2.IMREAD_ANYDEPTH)
-  rgb_data = load_all_images(args.rgb, cv2.IMREAD_COLOR)
 
-  print(depth_data[0])
+  if args.mode == 'test':
+    data_loader = FreiburgData('freiburg1_xyz.sqlite3')
+    p, n, l = data_loader.diff_depth_batch(256)
+    #  l *= 1e3
+    print(p.shape, n.shape, l.shape)
+    print(l[:10, :])
+  else:
+    label = load_label(args.label)
+    depth_data = load_all_images(args.depth, cv2.IMREAD_ANYDEPTH)
+    rgb_data = load_all_images(args.rgb, cv2.IMREAD_COLOR)
 
-  depth_data, depth_label = associate_labels(depth_data, label)
-  rgb_data, rgb_label = associate_labels(rgb_data, label)
+    print(depth_data[0])
 
-  save(depth_data, depth_label, 'depth', args.dbname)
-  save(rgb_data, rgb_label, 'rgb', args.dbname)
+    depth_data, depth_label = associate_labels(depth_data, label)
+    rgb_data, rgb_label = associate_labels(rgb_data, label)
+
+    save(depth_data, depth_label, 'depth', args.dbname)
+    save(rgb_data, rgb_label, 'rgb', args.dbname)
 
 
 if __name__ == '__main__':
-  test()
+  main()
