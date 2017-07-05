@@ -30,7 +30,7 @@ def load_all_images(folder, flag):
   images = []
   if os.path.isdir(folder):
     logger.info('loading images from %s' % (folder))
-    images_path = os.listdir(folder)
+    images_path = sorted(os.listdir(folder))
     for image_name in images_path:
       image_path = os.path.join(folder, image_name)
       img = cv2.imread(image_path, flag)
