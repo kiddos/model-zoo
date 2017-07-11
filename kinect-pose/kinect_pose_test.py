@@ -1,6 +1,7 @@
 import tensorflow as tf
 import numpy as np
 import os
+import matplotlib.pyplot as plt
 from argparse import ArgumentParser
 
 from kinect_pose import KinectPoseModel
@@ -39,6 +40,16 @@ def main():
         prediction = model.predict(sess, p, n)
         outputs += np.sum(np.abs(prediction - l), axis=0)
         print('processing batch %d...' % (i))
+
+        print(prediction[0, :])
+        p_image = p[0, :, :, 0]
+        n_image = n[0, :, :, 0]
+        plt.figure()
+        plt.imshow(p_image, cmap='gray')
+
+        plt.figure()
+        plt.imshow(n_image, cmap='gray')
+        plt.show()
       outputs /= args.test_size
       print(outputs)
   else:
