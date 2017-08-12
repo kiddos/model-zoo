@@ -1,0 +1,18 @@
+{
+  "blue": {
+    "HLow": 79,
+    "HHigh": 107,
+    "SLow": 39,
+    "SHigh": 255,
+    "VLow": 86,
+    "VHigh": 197
+  },
+  "wood": {
+    "HLow": 6,
+    "HHigh": 255,
+    "SLow": 66,
+    "SHigh": 246,
+    "VLow": 146,
+    "VHigh": 200 
+  }
+}
