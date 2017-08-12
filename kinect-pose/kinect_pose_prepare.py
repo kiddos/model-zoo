@@ -6,7 +6,6 @@ import sqlite3
 import matplotlib.pyplot as plt
 from argparse import ArgumentParser
 
-
 logging.basicConfig()
 logger = logging.getLogger('kinect_pose_prepare')
 logger.setLevel(logging.INFO)
@@ -27,14 +26,15 @@ def load_label(path):
   return np.array(data)
 
 
-def load_all_images(folder):
+def load_all_images(folder, flag):
   images = []
   if os.path.isdir(folder):
     logger.info('loading images from %s' % (folder))
-    images_path = os.listdir(folder)
+    images_path = sorted(os.listdir(folder))
     for image_name in images_path:
+      print(image_name)
       image_path = os.path.join(folder, image_name)
-      img = cv2.imread(image_path)
+      img = cv2.imread(image_path, flag)
       images.append([float(image_name[:-4]), img])
   return images
 
@@ -82,6 +82,7 @@ def save(images, label, table_name, dbname):
 
   for i in range(len(images)):
     img = images[i, :]
+    img = img.reshape(img.shape[0], img.shape[1], -1)
     l = label[i, :]
     cursor.execute("""INSERT INTO %s(image, width, height, channel,
       tx, ty, tz, qx, qy, qz, qw)
@@ -104,8 +105,11 @@ class FreiburgData(object):
       rgb_raw_data = cursor.fetchall()
       connection.close()
 
-      self.depth_images, self.depth_labels = self._parse(depth_raw_data)
-      self.rgb_images, self.rgb_labels = self._parse(rgb_raw_data)
+      logger.info('loading depth images...')
+      self.depth_images, self.depth_labels = self._parse(depth_raw_data,
+          np.uint16)
+      logger.info('loading rgb images...')
+      self.rgb_images, self.rgb_labels = self._parse(rgb_raw_data, np.uint8)
       logger.info('depth images data shape: %s' %
         (str(self.depth_images.shape)))
       logger.info('depth labels data shape: %s' %
@@ -115,12 +119,12 @@ class FreiburgData(object):
       logger.info('rgb labels data shape: %s' %
         (str(self.rgb_labels.shape)))
 
-  def _parse(self, raw_data):
+  def _parse(self, raw_data, dtype):
     images = []
     labels = []
     for i in range(len(raw_data)):
       d = raw_data[i]
-      img = np.array(d[1], dtype=np.uint8).reshape(d[3], d[2], d[4])
+      img = np.frombuffer(d[1], dtype=dtype).reshape(d[3], d[2], d[4])
       l = d[5:]
       images.append(img)
       labels.append(l)
@@ -136,24 +140,13 @@ class FreiburgData(object):
 
     index1 = index1[:batch_size]
     index2 = index2[:batch_size]
-    prev_images = self.depth_images[index1, :]
-    next_images = self.depth_images[index2, :]
+    prev_images = self.depth_images[index1, :] / 5000.0
+    next_images = self.depth_images[index2, :] / 5000.0
     prev_labels = self.depth_labels[index1, :]
     next_labels = self.depth_labels[index2, :]
     #  print(prev_labels, next_labels)
     labels = next_labels - prev_labels
     return prev_images, next_images, labels
-
-
-
-def test():
-  data_loader = FreiburgData('freiburg1_xyz.sqlite3')
-  p, n, l = data_loader.diff_depth_batch(256)
-  #  l *= 1e3
-  print(p.shape, n.shape, l.shape)
-  print(l[:10, :])
-  #  assert data_loader.
-
 
 
 def main():
@@ -170,18 +163,30 @@ def main():
   parser.add_argument('--output-db', dest='dbname',
     default='freiburg1_xyz.sqlite3',
     help='ground truth label')
-
+  parser.add_argument('--mode', dest='mode',
+    default='create',
+    help='mode (test/create)')
   args = parser.parse_args()
-  label = load_label(args.label)
-  depth_data = load_all_images(args.depth)
-  rgb_data = load_all_images(args.rgb)
 
-  depth_data, depth_label = associate_labels(depth_data, label)
-  rgb_data, rgb_label = associate_labels(rgb_data, label)
+  if args.mode == 'test':
+    data_loader = FreiburgData('freiburg1_xyz.sqlite3')
+    p, n, l = data_loader.diff_depth_batch(256)
+    #  l *= 1e3
+    print(p.shape, n.shape, l.shape)
+    print(l[:10, :])
+  else:
+    label = load_label(args.label)
+    depth_data = load_all_images(args.depth, cv2.IMREAD_ANYDEPTH)
+    rgb_data = load_all_images(args.rgb, cv2.IMREAD_COLOR)
 
-  save(depth_data, depth_label, 'depth', args.dbname)
-  save(rgb_data, rgb_label, 'rgb', args.dbname)
+    print(depth_data[0])
+
+    depth_data, depth_label = associate_labels(depth_data, label)
+    rgb_data, rgb_label = associate_labels(rgb_data, label)
+
+    save(depth_data, depth_label, 'depth', args.dbname)
+    save(rgb_data, rgb_label, 'rgb', args.dbname)
 
 
 if __name__ == '__main__':
-  test()
+  main()
