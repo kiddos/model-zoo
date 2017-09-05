@@ -2,10 +2,14 @@
 *.pyc
 *.swp
 *.swo
+
+*.db
 *.sqlite3
 *.sqlite
+
 *.tar
 *.tgz
+*.zip
 
 *.data-00000-of-00001
 *.meta
