@@ -74,7 +74,7 @@ class MNISTConvolutionModel(object):
         padding='SAME') + b)
       h = tf.nn.max_pool(h, strides=[1, 2, 2, 1], ksize=[1, 2, 2, 1],
         padding='SAME')
-      h = tf.nn.dropout(h, keep_prob)
+      #  h = tf.nn.dropout(h, keep_prob)
     with tf.name_scope('conv2'):
       h2_size = 32
       w = tf.get_variable(name='conv_w2',
@@ -88,7 +88,7 @@ class MNISTConvolutionModel(object):
         padding='SAME') + b)
       h = tf.nn.max_pool(h, strides=[1, 2, 2, 1], ksize=[1, 2, 2, 1],
         padding='SAME')
-      h = tf.nn.dropout(h, keep_prob)
+      #  h = tf.nn.dropout(h, keep_prob)
     with tf.name_scope('conv3'):
       h3_size = 64
       w = tf.get_variable(name='conv_w3',
@@ -102,7 +102,7 @@ class MNISTConvolutionModel(object):
         padding='SAME') + b)
       h = tf.nn.max_pool(h, strides=[1, 2, 2, 1], ksize=[1, 2, 2, 1],
         padding='SAME')
-      h = tf.nn.dropout(h, keep_prob)
+      #  h = tf.nn.dropout(h, keep_prob)
     with tf.name_scope('conv4'):
       h4_size = 64
       w = tf.get_variable(name='conv_w4',
@@ -114,7 +114,7 @@ class MNISTConvolutionModel(object):
         initializer=tf.constant_initializer(value=1e-3))
       h = tf.nn.relu(tf.nn.conv2d(h, w, strides=[1, 1, 1, 1],
         padding='SAME') + b)
-      h = tf.nn.dropout(h, keep_prob)
+      #  h = tf.nn.dropout(h, keep_prob)
     with tf.name_scope('conv5'):
       h5_size = 64
       w = tf.get_variable(name='conv_w5',
@@ -126,7 +126,7 @@ class MNISTConvolutionModel(object):
         initializer=tf.constant_initializer(value=1e-3))
       h = tf.nn.relu(tf.nn.conv2d(h, w, strides=[1, 1, 1, 1],
         padding='SAME') + b)
-      h = tf.nn.dropout(h, keep_prob)
+      #  h = tf.nn.dropout(h, keep_prob)
     with tf.name_scope('conv6'):
       h6_size = 64
       w = tf.get_variable(name='conv_w6',
@@ -138,7 +138,7 @@ class MNISTConvolutionModel(object):
         initializer=tf.constant_initializer(value=1e-3))
       h = tf.nn.relu(tf.nn.conv2d(h, w, strides=[1, 1, 1, 1],
         padding='SAME') + b)
-      h = tf.nn.dropout(h, keep_prob)
+      #  h = tf.nn.dropout(h, keep_prob)
     with tf.name_scope('fc7'):
       h_shape = h.get_shape().as_list()
       connect_size = h_shape[1] * h_shape[2] * h_shape[3]
