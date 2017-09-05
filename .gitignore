@@ -6,3 +6,9 @@
 *.sqlite
 *.tar
 *.tgz
+
+*.data-00000-of-00001
+*.meta
+*.index
+**/checkpoint
+**/summary
