@@ -1,0 +1,18 @@
+*.pyc
+*.tar.gz
+*.sqlite
+*.sqlite3
+data_util/fonts/*
+data_util/iccv09Data/*
+
+*.jpg
+
+*/checkpoint
+*/summary
+*.data-*
+*.index
+*.meta
+
+# proto files
+rotational_invariance_pb2.py
+rotational_invariance_pb2_grpc.py

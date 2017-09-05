@@ -1,0 +1,32 @@
+syntax = "proto2";
+
+package RI;
+
+message Null {}
+
+message Rect {
+  required float x = 1;
+  required float y = 2;
+  required float w = 3;
+  required float h = 4;
+}
+
+message Image {
+  required int32 width = 1;
+  required int32 height = 2;
+  required int32 channel = 3;
+  required bytes data = 4;
+}
+
+message ROI {
+  required int32 num_roi = 1;
+  repeated Rect rects = 2;
+}
+
+service ROIService {
+  rpc GetROI(Image) returns (ROI) {}
+}
+
+service ImageService {
+  rpc GetImage(Null) returns (Image) {}
+}

@@ -1,0 +1,50 @@
+{
+  "yellow": {
+    "HLow": 25,
+    "HHigh": 32,
+    "SLow": 176,
+    "SHigh": 255,
+    "VLow": 68,
+    "VHigh": 255
+  },
+  "blue": {
+    "HLow": 69,
+    "HHigh": 134,
+    "SLow": 39,
+    "SHigh": 255,
+    "VLow": 76,
+    "VHigh": 197
+  },
+  "orange": {
+    "HLow": 14,
+    "HHigh": 67,
+    "SLow": 179,
+    "SHigh": 255,
+    "VLow": 95,
+    "VHigh": 255
+  },
+  "purple": {
+    "HLow": 137,
+    "HHigh": 160,
+    "SLow": 27,
+    "SHigh": 107,
+    "VLow": 0,
+    "VHigh": 99
+  },
+  "red0": {
+    "HLow": 0,
+    "HHigh": 8,
+    "SLow": 65,
+    "SHigh": 255,
+    "VLow": 12,
+    "VHigh": 255
+  },
+  "green": {
+    "HLow": 36,
+    "HHigh": 49,
+    "SLow": 93,
+    "SHigh": 255,
+    "VLow": 158,
+    "VHigh": 255
+  }
+}
