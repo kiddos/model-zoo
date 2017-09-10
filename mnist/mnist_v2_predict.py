@@ -60,8 +60,11 @@ def main():
       with open(args.output, 'w') as f:
         f.write('ImageId,Label\n')
         for i in range(0, len(test_data), parts):
-          result = np.argmax(
-            model.predict(sess, test_data[i:(i+parts), :]), axis=1)
+          result = sess.run(model.outputs, feed_dict={
+            model.images: test_data[i:(i+parts), :],
+            model.keep_prob: 1.0,
+          })
+          result = np.argmax(result, axis=1)
           logger.info('result: %s' % (str(result)))
           for j in range(len(result)):
             f.write('%d,%d\n' % (i + j + 1, result[j]))
