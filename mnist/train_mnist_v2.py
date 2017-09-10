@@ -56,7 +56,7 @@ def train():
     sess.run(tf.global_variables_initializer())
 
     indices = np.arange(len(train_images))
-    for epoch in range(args.max_epoch):
+    for epoch in range(args.max_epoch + 1):
       i = np.random.permutation(indices)[:args.batch_size]
       image_batch = train_images[i, :]
       label_batch = train_label[i, :]
