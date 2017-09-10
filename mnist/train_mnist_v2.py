@@ -22,7 +22,7 @@ def train():
   parser.add_argument('--db', dest='db', default='mnist.sqlite3',
     help='input sqlite3 db')
   parser.add_argument('--max-epoch', dest='max_epoch',
-    default=100000, help='max epoch to train')
+    default=100000, type=int, help='max epoch to train')
   parser.add_argument('--batch-size', dest='batch_size',
     default=256, type=int, help='batch size for training')
   parser.add_argument('--save-epoch', dest='save_epoch',
