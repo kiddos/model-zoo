@@ -29,46 +29,57 @@ class YOLOFace(object):
         self.size_label = tf.placeholder(dtype=tf.float32,
           shape=[None, GRID_SIZE, GRID_SIZE, 2], name='size_label')
 
+        tf.summary.image(name='input_images', tensor=self.images)
+        tf.summary.image(name='indicator_label', tensor=self.indicator_label)
+
+        self.keep_prob = tf.placeholder(dtype=tf.float32,
+          shape=[], name='keep_prob')
         self.learning_rate = tf.Variable(learning_rate, trainable=False,
           name='learning_rate')
+        self.decay_lr = tf.assign(self.learning_rate,
+          self.learning_rate * 0.9, name='decay_lr')
+
+        tf.summary.scalar(name='learning_rate', tensor=self.learning_rate)
 
     with tf.name_scope('conv1'):
-      conv1_size = 32
+      conv1_size = 64
       w = tf.get_variable(name='conv1_w',
-        shape=[3, 3, IMAGE_CHANNEL, conv1_size],
+        shape=[7, 7, IMAGE_CHANNEL, conv1_size],
         initializer=tf.random_normal_initializer(stddev=0.01))
       b = tf.get_variable(name='conv1_b', shape=[conv1_size],
-        initializer=tf.constant_initializer(value=0.1))
+        initializer=tf.constant_initializer(value=1.0))
       conv1 = tf.nn.relu(tf.nn.conv2d(self.images, w, strides=[1, 1, 1, 1],
         padding='SAME') + b)
       pool1 = tf.nn.max_pool(conv1, strides=[1, 2, 2, 1], ksize=[1, 2, 2, 1],
         padding='SAME')
 
     with tf.name_scope('conv2'):
-      conv2_size = 64
+      conv2_size = 128
       w = tf.get_variable(name='conv2_w',
-        shape=[3, 3, conv1_size, conv2_size],
-        initializer=tf.random_normal_initializer(stddev=0.05))
+        shape=[5, 5, conv1_size, conv2_size],
+        initializer=tf.random_normal_initializer(stddev=0.01))
       b = tf.get_variable(name='conv2_b', shape=[conv2_size],
-        initializer=tf.constant_initializer(value=0.1))
+        initializer=tf.constant_initializer(value=1.0))
       conv2 = tf.nn.relu(tf.nn.conv2d(pool1, w, strides=[1, 1, 1, 1],
         padding='SAME'))
       pool2 = tf.nn.max_pool(conv2, strides=[1, 2, 2, 1], ksize=[1, 2, 2, 1],
         padding='SAME')
 
     with tf.name_scope('conv3'):
-      conv3_size = 128
+      conv3_size = 512
       w = tf.get_variable(name='conv3_w',
-        shape=[3, 3, conv2_size, conv3_size],
-        initializer=tf.random_normal_initializer(stddev=0.05))
+        shape=[5, 5, conv2_size, conv3_size],
+        initializer=tf.random_normal_initializer(stddev=0.01))
       b = tf.get_variable(name='conv3_b', shape=[conv3_size],
-        initializer=tf.constant_initializer(value=0.1))
+        initializer=tf.constant_initializer(value=1.0))
       conv3 = tf.nn.relu(tf.nn.conv2d(pool2, w, strides=[1, 1, 1, 1],
         padding='SAME'))
       pool3 = tf.nn.max_pool(conv3, strides=[1, 2, 2, 1], ksize=[1, 2, 2, 1],
         padding='SAME')
+      with tf.device('/cpu:0'):
+        drop3 = tf.nn.dropout(pool3, self.keep_prob)
 
-    connect_shape = pool3.get_shape().as_list()
+    connect_shape = drop3.get_shape().as_list()
     connect_size = connect_shape[1] * connect_shape[2] * connect_shape[3]
     with tf.name_scope('output'):
       with tf.name_scope('incicator'):
@@ -80,10 +91,12 @@ class YOLOFace(object):
           shape=[GRID_SIZE * GRID_SIZE],
           initializer=tf.constant_initializer(value=1.0))
         indicator_output = tf.matmul(
-          tf.reshape(pool3, [-1, connect_size]), w) + b
+          tf.reshape(drop3, [-1, connect_size]), w) + b
         with tf.device('/cpu:0'):
           self.indicator_output = tf.reshape(indicator_output,
             [-1, GRID_SIZE, GRID_SIZE, 1])
+          tf.summary.image(name='indicator_prediction',
+            tensor=self.indicator_output)
 
       with tf.name_scope('coordinate'):
         w = tf.get_variable(name='coord_w',
@@ -94,7 +107,7 @@ class YOLOFace(object):
           shape=[GRID_SIZE * GRID_SIZE * 2],
           initializer=tf.constant_initializer(value=1.0))
         coord_output = tf.matmul(
-          tf.reshape(pool3, [-1, connect_size]), w) + b
+          tf.reshape(drop3, [-1, connect_size]), w) + b
         with tf.device('/cpu:0'):
           self.coord_output = tf.reshape(coord_output,
             [-1, GRID_SIZE, GRID_SIZE, 2])
@@ -108,7 +121,7 @@ class YOLOFace(object):
           shape=[GRID_SIZE * GRID_SIZE * 2],
           initializer=tf.constant_initializer(value=1.0))
         size_output = tf.matmul(
-          tf.reshape(pool3, [-1, connect_size]), w) + b
+          tf.reshape(drop3, [-1, connect_size]), w) + b
         with tf.device('/cpu:0'):
           self.size_output = tf.reshape(size_output,
             [-1, GRID_SIZE, GRID_SIZE, 2])
@@ -116,11 +129,12 @@ class YOLOFace(object):
     with tf.name_scope('loss'):
       with tf.name_scope('indicator'):
         with tf.device('/cpu:0'):
-          indicator_label = tf.reshape(self.indicator_label,
-            [-1, GRID_SIZE * GRID_SIZE])
-          noobj = 1.0 - indicator_label
-        diff = indicator_output - indicator_label
-        self.indicator_loss = tf.reduce_mean(tf.square(indicator_label * diff))
+          #  indicator_label = tf.reshape(self.indicator_label,
+          #    [-1, GRID_SIZE * GRID_SIZE])
+          noobj = 1.0 - self.indicator_label
+        diff = self.indicator_output - self.indicator_label
+        self.indicator_loss = tf.reduce_mean(
+          tf.square(self.indicator_label * diff))
         self.noobj_loss = tf.reduce_mean(tf.square(noobj * diff))
 
       with tf.name_scope('coord'):
@@ -138,9 +152,19 @@ class YOLOFace(object):
         self.lambda_coord * self.size_loss + \
         self.lambda_noobj * self.noobj_loss
 
+      with tf.device('/cpu:0'):
+        tf.summary.scalar(name='total_loss', tensor=self.loss)
+        tf.summary.scalar(name='indicator_loss', tensor=self.indicator_loss)
+        tf.summary.scalar(name='noobj_loss', tensor=self.noobj_loss)
+        tf.summary.scalar(name='coord_loss', tensor=self.coord_loss)
+        tf.summary.scalar(name='size_loss', tensor=self.size_loss)
+
     with tf.name_scope('optimizer'):
       optimizer = tf.train.GradientDescentOptimizer(self.learning_rate)
       self.train_ops = optimizer.minimize(self.loss)
+
+    with tf.name_scope('summary'):
+      self.summary = tf.summary.merge_all()
 
 
 def test():
