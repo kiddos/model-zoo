@@ -2,6 +2,7 @@ import numpy as np
 import logging
 import os
 import random
+import math
 from scipy.misc import imresize
 from scipy.ndimage import imread
 from scipy.io import loadmat
@@ -12,7 +13,7 @@ from face_detection_data_util import collect_image_path
 
 
 logging.basicConfig()
-logger = logging.getLogger('face detection data util')
+logger = logging.getLogger('yolo face batcher')
 logger.setLevel(logging.INFO)
 
 
@@ -34,6 +35,8 @@ class ImageBatch(object):
           boxes = []
           for i in range(num_box):
             box = [int(e) for e in f.readline().split(' ')[:-1]]
+            box[0] += box[2] / 2
+            box[1] += box[3] / 2
             boxes.append(box[:4])
           self.image_paths[path_name] = boxes
         assert len(self.image_paths) == image_count
@@ -47,8 +50,10 @@ class ImageBatch(object):
     coord = np.zeros(shape=[GRID_SIZE, GRID_SIZE, 2])
     size = np.zeros(shape=[GRID_SIZE, GRID_SIZE, 2])
     for box in self.image_paths[path_name]:
-      x = int(box[0] * GRID_SIZE / image.shape[1])
-      y = int(box[1] * GRID_SIZE / image.shape[0])
+      x = np.minimum(np.maximum(
+        int(box[0] * GRID_SIZE / image.shape[1]), 0), GRID_SIZE - 1)
+      y = np.minimum(np.maximum(
+        int(box[1] * GRID_SIZE / image.shape[0]), 0), GRID_SIZE - 1)
       indicator[y, x, 0] = 1.0
 
       coord[y, x, 0] = float(box[0]) / image.shape[1]
