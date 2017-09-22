@@ -44,10 +44,10 @@ class YOLOFace(object):
         tf.summary.scalar(name='learning_rate', tensor=self.learning_rate)
 
     with tf.name_scope('conv1'):
-      conv1_size = 8
+      conv1_size = 32
       w = tf.get_variable(name='conv1_w',
         shape=[3, 3, IMAGE_CHANNEL, conv1_size],
-        initializer=tf.random_normal_initializer(stddev=0.02))
+        initializer=tf.random_normal_initializer(stddev=0.03))
       b = tf.get_variable(name='conv1_b', shape=[conv1_size],
         initializer=tf.constant_initializer(value=1.0))
       conv1 = tf.nn.relu(tf.nn.conv2d(self.images, w, strides=[1, 1, 1, 1],
@@ -56,10 +56,10 @@ class YOLOFace(object):
         padding='SAME')
 
     with tf.name_scope('conv2'):
-      conv2_size = 16
+      conv2_size = 32
       w = tf.get_variable(name='conv2_w',
         shape=[3, 3, conv1_size, conv2_size],
-        initializer=tf.random_normal_initializer(stddev=0.2))
+        initializer=tf.random_normal_initializer(stddev=0.06))
       b = tf.get_variable(name='conv2_b', shape=[conv2_size],
         initializer=tf.constant_initializer(value=1.0))
       conv2 = tf.nn.relu(tf.nn.conv2d(pool1, w, strides=[1, 1, 1, 1],
@@ -101,7 +101,7 @@ class YOLOFace(object):
       conv6_size = 32
       w = tf.get_variable(name='conv6_w',
         shape=[3, 3, conv5_size, conv6_size],
-        initializer=tf.random_normal_initializer(stddev=0.06))
+        initializer=tf.random_normal_initializer(stddev=0.05))
       b = tf.get_variable(name='conv6_b', shape=[conv6_size],
         initializer=tf.constant_initializer(value=1.0))
       conv6 = tf.nn.relu(tf.nn.conv2d(conv5, w, strides=[1, 1, 1, 1],
@@ -113,7 +113,7 @@ class YOLOFace(object):
       conv7_size = 64
       w = tf.get_variable(name='conv7_w',
         shape=[3, 3, conv6_size, conv7_size],
-        initializer=tf.random_normal_initializer(stddev=0.06))
+        initializer=tf.random_normal_initializer(stddev=0.05))
       b = tf.get_variable(name='conv7_b', shape=[conv7_size],
         initializer=tf.constant_initializer(value=1.0))
       conv7 = tf.nn.relu(tf.nn.conv2d(pool6, w, strides=[1, 1, 1, 1],
@@ -145,7 +145,7 @@ class YOLOFace(object):
       conv10_size = 128
       w = tf.get_variable(name='conv10_w',
         shape=[3, 3, conv9_size, conv10_size],
-        initializer=tf.random_normal_initializer(stddev=0.05))
+        initializer=tf.random_normal_initializer(stddev=0.04))
       b = tf.get_variable(name='conv10_b', shape=[conv9_size],
         initializer=tf.constant_initializer(value=1.0))
       conv10 = tf.nn.relu(tf.nn.conv2d(conv9, w, strides=[1, 1, 1, 1],
@@ -155,7 +155,7 @@ class YOLOFace(object):
       conv11_size = 128
       w = tf.get_variable(name='conv11_w',
         shape=[3, 3, conv10_size, conv11_size],
-        initializer=tf.random_normal_initializer(stddev=0.05))
+        initializer=tf.random_normal_initializer(stddev=0.04))
       b = tf.get_variable(name='conv11_b', shape=[conv11_size],
         initializer=tf.constant_initializer(value=1.0))
       conv11 = tf.nn.relu(tf.nn.conv2d(conv10, w, strides=[1, 1, 1, 1],
@@ -167,7 +167,7 @@ class YOLOFace(object):
       conv12_size = 256
       w = tf.get_variable(name='conv12_w',
         shape=[3, 3, conv11_size, conv12_size],
-        initializer=tf.random_normal_initializer(stddev=0.04))
+        initializer=tf.random_normal_initializer(stddev=0.03))
       b = tf.get_variable(name='conv12_b', shape=[conv12_size],
         initializer=tf.constant_initializer(value=1.0))
       conv12 = tf.nn.relu(tf.nn.conv2d(pool11, w, strides=[1, 1, 1, 1],
@@ -177,7 +177,7 @@ class YOLOFace(object):
       conv13_size = 256
       w = tf.get_variable(name='conv13_w',
         shape=[3, 3, conv12_size, conv13_size],
-        initializer=tf.random_normal_initializer(stddev=0.046))
+        initializer=tf.random_normal_initializer(stddev=0.03))
       b = tf.get_variable(name='conv13_b', shape=[conv13_size],
         initializer=tf.constant_initializer(value=1.0))
       conv13 = tf.nn.relu(tf.nn.conv2d(conv12, w, strides=[1, 1, 1, 1],
@@ -187,7 +187,7 @@ class YOLOFace(object):
       conv14_size = 256
       w = tf.get_variable(name='conv14_w',
         shape=[3, 3, conv13_size, conv14_size],
-        initializer=tf.random_normal_initializer(stddev=0.046))
+        initializer=tf.random_normal_initializer(stddev=0.03))
       b = tf.get_variable(name='conv14_b', shape=[conv14_size],
         initializer=tf.constant_initializer(value=1.0))
       conv14 = tf.nn.relu(tf.nn.conv2d(conv13, w, strides=[1, 1, 1, 1],
