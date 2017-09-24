@@ -13,9 +13,11 @@ GRID_SIZE = 7
 
 class YOLOFace(object):
   def __init__(self, learning_rate=1e-3,
-      lambda_coord=5.0, lambda_noobj=0.5):
+      lambda_coord=5.0, lambda_noobj=0.5,
+      lambda_indicator=6.0):
     self.lambda_coord = lambda_coord
     self.lambda_noobj = lambda_noobj
+    self.lambda_indicator = lambda_indicator
     self._build_model(learning_rate)
 
   def _build_model(self, learning_rate):
@@ -44,63 +46,64 @@ class YOLOFace(object):
         tf.summary.scalar(name='learning_rate', tensor=self.learning_rate)
 
     with tf.name_scope('conv1'):
-      conv1_size = 32
+      conv1_size = 64
       w = tf.get_variable(name='conv1_w',
-        shape=[11, 11, IMAGE_CHANNEL, conv1_size],
-        initializer=tf.random_normal_initializer(stddev=0.01))
+        shape=[7, 7, IMAGE_CHANNEL, conv1_size],
+        initializer=tf.random_normal_initializer(stddev=0.006))
       b = tf.get_variable(name='conv1_b', shape=[conv1_size],
         initializer=tf.constant_initializer(value=1.0))
       conv1 = tf.nn.relu(tf.nn.conv2d(self.images, w, strides=[1, 1, 1, 1],
         padding='SAME') + b)
       pool1 = tf.nn.max_pool(conv1, strides=[1, 2, 2, 1], ksize=[1, 2, 2, 1],
         padding='SAME')
+      tf.summary.histogram(name='pool1', values=pool1)
 
     with tf.name_scope('conv2'):
-      conv2_size = 32
+      conv2_size = 128
       w = tf.get_variable(name='conv2_w',
-        shape=[11, 11, conv1_size, conv2_size],
-        initializer=tf.random_normal_initializer(stddev=0.01))
+        shape=[7, 7, conv1_size, conv2_size],
+        initializer=tf.random_normal_initializer(stddev=0.03))
       b = tf.get_variable(name='conv2_b', shape=[conv2_size],
         initializer=tf.constant_initializer(value=1.0))
       conv2 = tf.nn.relu(tf.nn.conv2d(pool1, w, strides=[1, 1, 1, 1],
         padding='SAME'))
+      tf.summary.histogram(name='conv2', values=conv2)
 
     with tf.name_scope('conv3'):
-      conv3_size = 32
+      conv3_size = 128
       w = tf.get_variable(name='conv3_w',
-        shape=[11, 11, conv2_size, conv3_size],
-        initializer=tf.random_normal_initializer(stddev=0.01))
+        shape=[7, 7, conv2_size, conv3_size],
+        initializer=tf.random_normal_initializer(stddev=0.03))
       b = tf.get_variable(name='conv3_b', shape=[conv3_size],
         initializer=tf.constant_initializer(value=1.0))
       conv3 = tf.nn.relu(tf.nn.conv2d(conv2, w, strides=[1, 1, 1, 1],
         padding='SAME'))
-      pool3 = tf.nn.max_pool(conv3, strides=[1, 2, 2, 1], ksize=[1, 2, 2, 1],
-        padding='SAME')
+      tf.summary.histogram(name='conv3', values=conv3)
 
     with tf.name_scope('conv4'):
-      conv4_size = 32
+      conv4_size = 128
       w = tf.get_variable(name='conv4_w',
-        shape=[11, 11, conv3_size, conv4_size],
-        initializer=tf.random_normal_initializer(stddev=0.01))
+        shape=[7, 7, conv3_size, conv4_size],
+        initializer=tf.random_normal_initializer(stddev=0.03))
       b = tf.get_variable(name='conv4_b', shape=[conv4_size],
         initializer=tf.constant_initializer(value=1.0))
-      conv4 = tf.nn.relu(tf.nn.conv2d(pool3, w, strides=[1, 1, 1, 1],
+      conv4 = tf.nn.relu(tf.nn.conv2d(conv3, w, strides=[1, 1, 1, 1],
         padding='SAME'))
 
     with tf.name_scope('conv5'):
-      conv5_size = 32
+      conv5_size = 128
       w = tf.get_variable(name='conv5_w',
-        shape=[9, 9, conv4_size, conv5_size],
-        initializer=tf.random_normal_initializer(stddev=0.02))
+        shape=[5, 5, conv4_size, conv5_size],
+        initializer=tf.random_normal_initializer(stddev=0.03))
       b = tf.get_variable(name='conv5_b', shape=[conv5_size],
         initializer=tf.constant_initializer(value=1.0))
       conv5 = tf.nn.relu(tf.nn.conv2d(conv4, w, strides=[1, 1, 1, 1],
         padding='SAME'))
 
     with tf.name_scope('conv6'):
-      conv6_size = 32
+      conv6_size = 128
       w = tf.get_variable(name='conv6_w',
-        shape=[9, 9, conv5_size, conv6_size],
+        shape=[5, 5, conv5_size, conv6_size],
         initializer=tf.random_normal_initializer(stddev=0.02))
       b = tf.get_variable(name='conv6_b', shape=[conv6_size],
         initializer=tf.constant_initializer(value=1.0))
@@ -108,11 +111,12 @@ class YOLOFace(object):
         padding='SAME'))
       pool6 = tf.nn.max_pool(conv6, strides=[1, 2, 2, 1], ksize=[1, 2, 2, 1],
         padding='SAME')
+      tf.summary.histogram(name='pool6', values=pool6)
 
     with tf.name_scope('conv7'):
-      conv7_size = 64
+      conv7_size = 256
       w = tf.get_variable(name='conv7_w',
-        shape=[7, 7, conv6_size, conv7_size],
+        shape=[5, 5, conv6_size, conv7_size],
         initializer=tf.random_normal_initializer(stddev=0.02))
       b = tf.get_variable(name='conv7_b', shape=[conv7_size],
         initializer=tf.constant_initializer(value=1.0))
@@ -120,9 +124,9 @@ class YOLOFace(object):
         padding='SAME'))
 
     with tf.name_scope('conv8'):
-      conv8_size = 64
+      conv8_size = 256
       w = tf.get_variable(name='conv8_w',
-        shape=[7, 7, conv7_size, conv8_size],
+        shape=[5, 5, conv7_size, conv8_size],
         initializer=tf.random_normal_initializer(stddev=0.02))
       b = tf.get_variable(name='conv8_b', shape=[conv8_size],
         initializer=tf.constant_initializer(value=1.0))
@@ -130,88 +134,91 @@ class YOLOFace(object):
         padding='SAME'))
       pool8 = tf.nn.max_pool(conv8, strides=[1, 2, 2, 1], ksize=[1, 2, 2, 1],
         padding='SAME')
+      tf.summary.histogram(name='pool8', values=pool8)
 
     with tf.name_scope('conv9'):
-      conv9_size = 128
+      conv9_size = 512
       w = tf.get_variable(name='conv9_w',
-        shape=[7, 7, conv8_size, conv9_size],
-        initializer=tf.random_normal_initializer(stddev=0.02))
+        shape=[5, 5, conv8_size, conv9_size],
+        initializer=tf.random_normal_initializer(stddev=0.01))
       b = tf.get_variable(name='conv9_b', shape=[conv9_size],
         initializer=tf.constant_initializer(value=1.0))
       conv9 = tf.nn.relu(tf.nn.conv2d(pool8, w, strides=[1, 1, 1, 1],
         padding='SAME'))
 
     with tf.name_scope('conv10'):
-      conv10_size = 128
+      conv10_size = 512
       w = tf.get_variable(name='conv10_w',
-        shape=[7, 7, conv9_size, conv10_size],
-        initializer=tf.random_normal_initializer(stddev=0.02))
+        shape=[5, 5, conv9_size, conv10_size],
+        initializer=tf.random_normal_initializer(stddev=0.01))
       b = tf.get_variable(name='conv10_b', shape=[conv9_size],
         initializer=tf.constant_initializer(value=1.0))
       conv10 = tf.nn.relu(tf.nn.conv2d(conv9, w, strides=[1, 1, 1, 1],
         padding='SAME'))
 
     with tf.name_scope('conv11'):
-      conv11_size = 128
+      conv11_size = 512
       w = tf.get_variable(name='conv11_w',
-        shape=[7, 7, conv10_size, conv11_size],
-        initializer=tf.random_normal_initializer(stddev=0.02))
+        shape=[5, 5, conv10_size, conv11_size],
+        initializer=tf.random_normal_initializer(stddev=0.01))
       b = tf.get_variable(name='conv11_b', shape=[conv11_size],
         initializer=tf.constant_initializer(value=1.0))
       conv11 = tf.nn.relu(tf.nn.conv2d(conv10, w, strides=[1, 1, 1, 1],
         padding='SAME'))
       pool11 = tf.nn.max_pool(conv11, strides=[1, 2, 2, 1], ksize=[1, 2, 2, 1],
         padding='SAME')
+      tf.summary.histogram(name='pool11', values=pool11)
 
     with tf.name_scope('conv12'):
-      conv12_size = 256
+      conv12_size = 1024
       w = tf.get_variable(name='conv12_w',
-        shape=[5, 5, conv11_size, conv12_size],
-        initializer=tf.random_normal_initializer(stddev=0.02))
+        shape=[3, 3, conv11_size, conv12_size],
+        initializer=tf.random_normal_initializer(stddev=0.01))
       b = tf.get_variable(name='conv12_b', shape=[conv12_size],
         initializer=tf.constant_initializer(value=1.0))
       conv12 = tf.nn.relu(tf.nn.conv2d(pool11, w, strides=[1, 1, 1, 1],
         padding='SAME'))
 
     with tf.name_scope('conv13'):
-      conv13_size = 256
+      conv13_size = 1024
       w = tf.get_variable(name='conv13_w',
-        shape=[5, 5, conv12_size, conv13_size],
-        initializer=tf.random_normal_initializer(stddev=0.03))
+        shape=[3, 3, conv12_size, conv13_size],
+        initializer=tf.random_normal_initializer(stddev=0.01))
       b = tf.get_variable(name='conv13_b', shape=[conv13_size],
         initializer=tf.constant_initializer(value=1.0))
       conv13 = tf.nn.relu(tf.nn.conv2d(conv12, w, strides=[1, 1, 1, 1],
         padding='SAME'))
 
     with tf.name_scope('conv14'):
-      conv14_size = 256
+      conv14_size = 1024
       w = tf.get_variable(name='conv14_w',
         shape=[3, 3, conv13_size, conv14_size],
-        initializer=tf.random_normal_initializer(stddev=0.03))
+        initializer=tf.random_normal_initializer(stddev=0.01))
       b = tf.get_variable(name='conv14_b', shape=[conv14_size],
         initializer=tf.constant_initializer(value=1.0))
       conv14 = tf.nn.relu(tf.nn.conv2d(conv13, w, strides=[1, 1, 1, 1],
         padding='SAME'))
 
     with tf.name_scope('conv15'):
-      conv15_size = 512
+      conv15_size = 1024
       w = tf.get_variable(name='conv15_w',
         shape=[3, 3, conv14_size, conv15_size],
-        initializer=tf.random_normal_initializer(stddev=0.03))
+        initializer=tf.random_normal_initializer(stddev=0.01))
       b = tf.get_variable(name='conv15_b', shape=[conv15_size],
         initializer=tf.constant_initializer(value=1.0))
       conv15 = tf.nn.relu(tf.nn.conv2d(conv14, w, strides=[1, 1, 1, 1],
         padding='SAME'))
 
     with tf.name_scope('conv16'):
-      conv16_size = 512
+      conv16_size = 1024
       w = tf.get_variable(name='conv16_w',
         shape=[3, 3, conv15_size, conv16_size],
-        initializer=tf.random_normal_initializer(stddev=0.03))
+        initializer=tf.random_normal_initializer(stddev=0.01))
       b = tf.get_variable(name='conv16_b', shape=[conv15_size],
         initializer=tf.constant_initializer(value=1.0))
       conv16 = tf.nn.relu(tf.nn.conv2d(conv15, w, strides=[1, 1, 1, 1],
         padding='SAME'))
+      tf.summary.histogram(name='conv16', values=conv16)
 
       with tf.device('/cpu:0'):
         drop16 = tf.nn.dropout(conv16, self.keep_prob)
@@ -288,7 +295,8 @@ class YOLOFace(object):
         self.size_loss = tf.reduce_sum(
           tf.square(self.indicator_label * diff)) / batch_size
 
-      self.loss = self.indicator_loss + \
+      self.loss = \
+        self.lambda_indicator * self.indicator_loss + \
         self.lambda_coord * self.coord_loss + \
         self.lambda_coord * self.size_loss + \
         self.lambda_noobj * self.noobj_loss
