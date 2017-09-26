@@ -37,7 +37,9 @@ def main():
       if camera.isOpened():
         while True:
           _, image = camera.read()
-          input_image = cv2.resize(image, (IMAGE_WIDTH, IMAGE_HEIGHT))
+          input_image = cv2.cvtColor(
+            cv2.resize(image, (IMAGE_WIDTH, IMAGE_HEIGHT)),
+            cv2.COLOR_BGR2RGB)
           indicator, coord, size = sess.run(
               [model.indicator_output, model.coord_output,
                 model.size_output], feed_dict={
@@ -51,8 +53,8 @@ def main():
           for i in range(len(coordinates)):
             x = coordinates[i, 0] * image.shape[1]
             y = coordinates[i, 1] * image.shape[0]
-            w = sizes[i, 0] * image.shape[1] * image.shape[1] / IMAGE_WIDTH
-            h = sizes[i, 1] * image.shape[0] * image.shape[0] / IMAGE_HEIGHT
+            w = sizes[i, 0] * image.shape[1]
+            h = sizes[i, 1] * image.shape[0]
             p1 = (int(x - w / 2), int(y - h / 2))
             p2 = (int(x + w / 2), int(y + h / 2))
             cv2.rectangle(image, p1, p2, (100, 255, 100), 2)
