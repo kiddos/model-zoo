@@ -130,8 +130,12 @@ def setup_checkpoint(model_name):
 
 def train(model_name, hidden_size, learning_rate, tau,
     max_epoch, display_epoch, save_epoch, max_step, batch_size,
-    render=True):
-  checkpoint_path = setup_checkpoint(model_name)
+    replay_buffer_size,
+    render=False, saving=False):
+  if saving:
+    saver = tf.train.Saver()
+    checkpoint_path = setup_checkpoint(model_name)
+
   q_function = QFunction(hidden_size, learning_rate, tau)
 
   config = tf.ConfigProto()
@@ -179,7 +183,7 @@ def train(model_name, hidden_size, learning_rate, tau,
           if train_epoch % save_epoch == 0:
             epsilon *= 0.999
 
-          if len(replay_buffer) >= 1000:
+          if len(replay_buffer) >= replay_buffer_size:
             state_batch = []
             action_batch = []
             reward_batch = []
@@ -202,7 +206,7 @@ def train(model_name, hidden_size, learning_rate, tau,
             next_q_values = q_function.predict_batch(sess, next_state_batch)
             loss = q_function.train(sess, state_batch, action_batch,
               reward_batch, done_batch, next_q_values)
-            if train_epoch % 100 == 0:
+            if train_epoch % display_epoch == 0:
               logger.info('%d. episode: %d, loss: %f | QMax: %f' %
                 (train_epoch, epoch, loss, np.amax(next_q_values)))
             train_epoch += 1
@@ -210,7 +214,11 @@ def train(model_name, hidden_size, learning_rate, tau,
             if train_epoch % 100 == 0:
               q_function.update_target(sess)
 
-            while len(replay_buffer) > 2000:
+            if train_epoch % save_epoch == 0 and train_epoch != 0 and saving:
+              logger.info('saving checkpoint %s ...' % (checkpoint_path))
+              saver.save(sess, checkpoint_path, global_step=train_epoch)
+
+            while len(replay_buffer) > replay_buffer_size * 3:
               replay_buffer.pop()
 
           if done:
@@ -228,18 +236,27 @@ def main():
   parser.add_argument('--max-epoch', dest='max_epoch',
     default=10000, type=int, help='max epoch for training')
   parser.add_argument('--display-epoch', dest='display_epoch',
-    default=30, type=int, help='epoch for display')
+    default=500, type=int, help='epoch for display')
   parser.add_argument('--save-epoch', dest='save_epoch',
-    default=100, type=int, help='epoch for saving session')
+    default=1000, type=int, help='epoch for saving session')
   parser.add_argument('--max-step', dest='max_step',
     default=500, type=int, help='max step for each episode')
   parser.add_argument('--batch-size', dest='batch_size',
     default=64, type=int, help='batch size')
+  parser.add_argument('--replay-buffer-size', dest='replay_buffer_size',
+    default=1000, type=int, help='replay buffer size')
+  parser.add_argument('--render', dest='render',
+    default=False, type=bool, help='whether to display animation')
+  parser.add_argument('--saving', dest='saving',
+    default=False, type=bool, help='whether to save model')
+  parser.add_argument('--model-name', dest='model_name',
+    default='cart_dqn', help='model name')
   args = parser.parse_args()
 
-  train(args.hidden_size, args.learning_rate, args.tau,
+  train(args.model_name, args.hidden_size, args.learning_rate, args.tau,
     args.max_epoch, args.display_epoch, args.save_epoch, args.max_step,
-    args.batch_size)
+    args.batch_size, args.replay_buffer_size,
+    render=args.render, saving=args.saving)
 
 
 if __name__ == '__main__':
