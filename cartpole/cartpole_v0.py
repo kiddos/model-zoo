@@ -56,7 +56,17 @@ class QFunction(object):
       b = tf.get_variable(name='ib', shape=[self.hidden_size],
         initializer=tf.constant_initializer(value=1.0),
         trainable=trainable)
-      h = tf.nn.tanh(tf.matmul(self.state, w) + b)
+      h1 = tf.nn.relu(tf.matmul(self.state, w) + b)
+
+      w = tf.get_variable(name='hw',
+        shape=[self.hidden_size, self.hidden_size],
+        initializer=tf.random_normal_initializer(
+          stddev=np.sqrt(2.0/self.hidden_size)),
+        trainable=trainable)
+      b = tf.get_variable(name='hb', shape=[self.hidden_size],
+        initializer=tf.constant_initializer(value=1.0),
+        trainable=trainable)
+      h2 = tf.nn.relu(tf.matmul(h1, w) + b)
 
     with tf.name_scope('output'):
       w = tf.get_variable(name='ow', shape=[self.hidden_size, 2],
@@ -64,9 +74,9 @@ class QFunction(object):
           self.hidden_size)),
         trainable=trainable)
       b = tf.get_variable(name='ob', shape=[2],
-        initializer=tf.constant_initializer(value=1.0),
+        initializer=tf.constant_initializer(value=1e-3),
         trainable=trainable)
-      q_value = tf.matmul(h, w) + b
+      q_value = tf.matmul(h2, w) + b
     return q_value
 
   def _setup_update_ops(self, tau):
@@ -176,7 +186,6 @@ def train(model_name, hidden_size, learning_rate, tau,
           q_value = q_function.predict(sess, state)
           action = epsilon_greedy(q_value, epsilon)
           next_state, reward, done, _ = env.step(action)
-          #  if done: reward = -100
           replay_buffer.append((state, action, reward, next_state, done))
           state = next_state
 
@@ -228,7 +237,7 @@ def train(model_name, hidden_size, learning_rate, tau,
 def main():
   parser = ArgumentParser()
   parser.add_argument('--learning-rate', dest='learning_rate',
-    default=1e-3, type=float, help='learning rate for training')
+    default=1e-4, type=float, help='learning rate for training')
   parser.add_argument('--tau', dest='tau',
     default=1e-3, type=float, help='parameter control target weight transfer')
   parser.add_argument('--hidden-size', dest='hidden_size',
