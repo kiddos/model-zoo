@@ -46,10 +46,10 @@ class YOLOFace(object):
         tf.summary.scalar(name='learning_rate', tensor=self.learning_rate)
 
     with tf.name_scope('conv1'):
-      conv1_size = 64
+      conv1_size = 128
       w = tf.get_variable(name='conv1_w',
         shape=[3, 3, IMAGE_CHANNEL, conv1_size],
-        initializer=tf.random_normal_initializer(stddev=0.006))
+        initializer=tf.random_normal_initializer(stddev=0.003))
       b = tf.get_variable(name='conv1_b', shape=[conv1_size],
         initializer=tf.constant_initializer(value=1.0))
       conv1 = tf.nn.relu(tf.nn.conv2d(self.images, w, strides=[1, 1, 1, 1],
@@ -59,7 +59,7 @@ class YOLOFace(object):
       tf.summary.histogram(name='pool1', values=pool1)
 
     with tf.name_scope('conv2'):
-      conv2_size = 128
+      conv2_size = 256
       w = tf.get_variable(name='conv2_w',
         shape=[3, 3, conv1_size, conv2_size],
         initializer=tf.random_normal_initializer(stddev=0.03))
@@ -69,7 +69,7 @@ class YOLOFace(object):
         padding='SAME'))
 
     with tf.name_scope('conv3'):
-      conv3_size = 128
+      conv3_size = 256
       w = tf.get_variable(name='conv3_w',
         shape=[3, 3, conv2_size, conv3_size],
         initializer=tf.random_normal_initializer(stddev=0.03))
@@ -82,20 +82,20 @@ class YOLOFace(object):
       tf.summary.histogram(name='pool3', values=pool3)
 
     with tf.name_scope('conv4'):
-      conv4_size = 256
+      conv4_size = 512
       w = tf.get_variable(name='conv4_w',
         shape=[3, 3, conv3_size, conv4_size],
-        initializer=tf.random_normal_initializer(stddev=0.03))
+        initializer=tf.random_normal_initializer(stddev=0.02))
       b = tf.get_variable(name='conv4_b', shape=[conv4_size],
         initializer=tf.constant_initializer(value=1.0))
       conv4 = tf.nn.relu(tf.nn.conv2d(pool3, w, strides=[1, 1, 1, 1],
         padding='SAME'))
 
     with tf.name_scope('conv5'):
-      conv5_size = 256
+      conv5_size = 512
       w = tf.get_variable(name='conv5_w',
         shape=[3, 3, conv4_size, conv5_size],
-        initializer=tf.random_normal_initializer(stddev=0.03))
+        initializer=tf.random_normal_initializer(stddev=0.02))
       b = tf.get_variable(name='conv5_b', shape=[conv5_size],
         initializer=tf.constant_initializer(value=1.0))
       conv5 = tf.nn.relu(tf.nn.conv2d(conv4, w, strides=[1, 1, 1, 1],
@@ -105,20 +105,20 @@ class YOLOFace(object):
       tf.summary.histogram(name='pool5', values=pool5)
 
     with tf.name_scope('conv6'):
-      conv6_size = 512
+      conv6_size = 1024
       w = tf.get_variable(name='conv6_w',
         shape=[3, 3, conv5_size, conv6_size],
-        initializer=tf.random_normal_initializer(stddev=0.02))
+        initializer=tf.random_normal_initializer(stddev=0.01))
       b = tf.get_variable(name='conv6_b', shape=[conv6_size],
         initializer=tf.constant_initializer(value=1.0))
       conv6 = tf.nn.relu(tf.nn.conv2d(pool5, w, strides=[1, 1, 1, 1],
         padding='SAME'))
 
     with tf.name_scope('conv7'):
-      conv7_size = 512
+      conv7_size = 1024
       w = tf.get_variable(name='conv7_w',
         shape=[3, 3, conv6_size, conv7_size],
-        initializer=tf.random_normal_initializer(stddev=0.02))
+        initializer=tf.random_normal_initializer(stddev=0.01))
       b = tf.get_variable(name='conv7_b', shape=[conv7_size],
         initializer=tf.constant_initializer(value=1.0))
       conv7 = tf.nn.relu(tf.nn.conv2d(conv6, w, strides=[1, 1, 1, 1],
