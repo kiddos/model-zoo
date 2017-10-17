@@ -8,12 +8,12 @@ import os
 IMAGE_WIDTH = 256
 IMAGE_HEIGHT = 222
 IMAGE_CHANNEL = 3
-GRID_SIZE = 16
+GRID_SIZE = 7
 
 
 class YOLOFace(object):
   def __init__(self, learning_rate=1e-3,
-      lambda_coord=5.0, lambda_noobj=0.5,
+      lambda_coord=2.6, lambda_noobj=0.26,
       lambda_indicator=1.0):
     self.lambda_coord = lambda_coord
     self.lambda_noobj = lambda_noobj
