@@ -5,7 +5,7 @@ import logging
 import os
 from argparse import ArgumentParser
 
-from yolo_face_v6 import YOLOFace, IMAGE_WIDTH, IMAGE_HEIGHT
+from yolo_face_v7 import YOLOFace, IMAGE_WIDTH, IMAGE_HEIGHT
 
 
 logging.basicConfig()
@@ -16,7 +16,7 @@ logger.setLevel(logging.INFO)
 def main():
   parser = ArgumentParser()
   parser.add_argument('--checkpoint', dest='checkpoint',
-    default='yolo_face_v6_0/yolo_face-200000', help='checkpoint to load')
+    default='yolo_face_v7_0/yolo_face-200000', help='checkpoint to load')
   parser.add_argument('--threshold', dest='threshold',
     default=0.5, type=float, help='threshold for indicator')
   args = parser.parse_args()
