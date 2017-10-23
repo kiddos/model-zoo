@@ -3,6 +3,7 @@ import numpy as np
 import cv2
 import logging
 import os
+import time
 from argparse import ArgumentParser
 
 from yolo_face_v6 import YOLOFace, IMAGE_WIDTH, IMAGE_HEIGHT
@@ -24,7 +25,8 @@ def main():
   if os.path.isfile(args.checkpoint + '.index') and \
       os.path.isfile(args.checkpoint + '.meta'):
 
-    model = YOLOFace()
+    with tf.device('/cpu:0'):
+      model = YOLOFace()
     saver = tf.train.Saver()
 
     config = tf.ConfigProto()
@@ -40,11 +42,13 @@ def main():
           input_image = cv2.cvtColor(
             cv2.resize(image, (IMAGE_WIDTH, IMAGE_HEIGHT)),
             cv2.COLOR_BGR2RGB)
+          start = time.time()
           indicator, coord, size = sess.run(
               [model.indicator_output, model.coord_output,
                 model.size_output], feed_dict={
                   model.images: np.expand_dims(input_image, axis=0),
                   model.keep_prob: 1.0})
+          print('time passed: %f' % (time.time() - start))
           valid = np.squeeze(indicator > args.threshold)
           coordinates = coord[0, valid, :]
           sizes = size[0, valid, :]
