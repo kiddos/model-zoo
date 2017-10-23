@@ -148,11 +148,11 @@ def train(model_name,
     max_epoch, display_epoch, save_epoch, max_step, batch_size,
     replay_buffer_size,
     render=False, saving=False):
+  q_function = QFunction()
+
   if saving:
     saver = tf.train.Saver()
     checkpoint_path = setup_checkpoint(model_name)
-
-  q_function = QFunction()
 
   config = tf.ConfigProto()
   config.gpu_options.allocator_type = 'BFC'
