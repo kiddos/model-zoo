@@ -50,6 +50,8 @@ class YOLOFace(object):
         initializer=tf.constant_initializer(value=1.0))
       conv1 = tf.nn.relu(tf.nn.conv2d(self.images, w, strides=[1, 1, 1, 1],
         padding='SAME') + b)
+
+    with tf.name_scope('pool1'):
       pool1 = tf.nn.max_pool(conv1, strides=[1, 2, 2, 1], ksize=[1, 2, 2, 1],
         padding='SAME')
 
@@ -61,7 +63,9 @@ class YOLOFace(object):
       b = tf.get_variable(name='conv2_b', shape=[conv2_size],
         initializer=tf.constant_initializer(value=1.0))
       conv2 = tf.nn.relu(tf.nn.conv2d(pool1, w, strides=[1, 1, 1, 1],
-        padding='SAME'))
+        padding='SAME') + b)
+
+    with tf.name_scope('pool2'):
       pool2 = tf.nn.max_pool(conv2, strides=[1, 2, 2, 1], ksize=[1, 2, 2, 1],
         padding='SAME')
 
@@ -73,65 +77,30 @@ class YOLOFace(object):
       b = tf.get_variable(name='conv3_b', shape=[conv3_size],
         initializer=tf.constant_initializer(value=1.0))
       conv3 = tf.nn.relu(tf.nn.conv2d(pool2, w, strides=[1, 1, 1, 1],
-        padding='SAME'))
+        padding='SAME') + b)
+
+    with tf.name_scope('pool3'):
       pool3 = tf.nn.max_pool(conv3, strides=[1, 2, 2, 1], ksize=[1, 2, 2, 1],
         padding='SAME')
       with tf.device('/cpu:0'):
         drop3 = tf.nn.dropout(pool3, self.keep_prob)
 
-    connect_shape = drop3.get_shape().as_list()
-    connect_size = connect_shape[1] * connect_shape[2] * connect_shape[3]
     with tf.name_scope('output'):
-      with tf.name_scope('incicator'):
-        w = tf.get_variable(name='indicator_w',
-          shape=[connect_size, GRID_SIZE * GRID_SIZE],
-          initializer=tf.random_normal_initializer(
-            stddev=np.sqrt(2.0/connect_size)))
-        b = tf.get_variable(name='indicator_b',
-          shape=[GRID_SIZE * GRID_SIZE],
-          initializer=tf.constant_initializer(value=1.0))
-        indicator_output = tf.matmul(
-          tf.reshape(drop3, [-1, connect_size]), w) + b
-        with tf.device('/cpu:0'):
-          self.indicator_output = tf.reshape(indicator_output,
-            [-1, GRID_SIZE, GRID_SIZE, 1])
-          tf.summary.image(name='indicator_prediction',
-            tensor=self.indicator_output)
-
-      with tf.name_scope('coordinate'):
-        w = tf.get_variable(name='coord_w',
-          shape=[connect_size, GRID_SIZE * GRID_SIZE * 2],
-          initializer=tf.random_normal_initializer(
-            stddev=np.sqrt(2.0/connect_size)))
-        b = tf.get_variable(name='coord_b',
-          shape=[GRID_SIZE * GRID_SIZE * 2],
-          initializer=tf.constant_initializer(value=1.0))
-        coord_output = tf.matmul(
-          tf.reshape(drop3, [-1, connect_size]), w) + b
-        with tf.device('/cpu:0'):
-          self.coord_output = tf.reshape(coord_output,
-            [-1, GRID_SIZE, GRID_SIZE, 2])
-
-      with tf.name_scope('size'):
-        w = tf.get_variable(name='size_w',
-          shape=[connect_size, GRID_SIZE * GRID_SIZE * 2],
-          initializer=tf.random_normal_initializer(
-            stddev=np.sqrt(2.0/connect_size)))
-        b = tf.get_variable(name='size_b',
-          shape=[GRID_SIZE * GRID_SIZE * 2],
-          initializer=tf.constant_initializer(value=1.0))
-        size_output = tf.matmul(
-          tf.reshape(drop3, [-1, connect_size]), w) + b
-        with tf.device('/cpu:0'):
-          self.size_output = tf.reshape(size_output,
-            [-1, GRID_SIZE, GRID_SIZE, 2])
+      connect_shape = drop3.get_shape().as_list()
+      connect_size = connect_shape[1] * connect_shape[2] * connect_shape[3]
+      output_size = GRID_SIZE * GRID_SIZE * 5
+      w = tf.get_variable(name='ow', shape=[connect_size, output_size],
+        initializer=tf.random_normal_initializer(
+          stddev=np.sqrt(2.0 / connect_size)))
+      b = tf.get_variable(name='ob', shape=[output_size])
+      output = tf.matmul(tf.reshape(drop3, [-1, connect_size]), w) + b
+      output = tf.reshape(output, [-1, GRID_SIZE, GRID_SIZE, 5])
+      self.indicator_output, self.coord_output, self.size_output = \
+        tf.split(output, [1, 2, 2], axis=3)
 
     with tf.name_scope('loss'):
       with tf.name_scope('indicator'):
-        with tf.device('/cpu:0'):
-          #  indicator_label = tf.reshape(self.indicator_label,
-          #    [-1, GRID_SIZE * GRID_SIZE])
-          noobj = 1.0 - self.indicator_label
+        noobj = 1.0 - self.indicator_label
         diff = self.indicator_output - self.indicator_label
         self.indicator_loss = tf.reduce_mean(
           tf.square(self.indicator_label * diff))
