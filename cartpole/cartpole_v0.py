@@ -10,9 +10,9 @@ from collections import deque
 
 HIDDEN_SIZE = 128
 LEARNING_RATE = 1e-3
-TAU = 1e-1
+TAU = 1e0
 DISCOUNT_FACTOR = 0.99
-UPDATE_FREQ = 100
+UPDATE_FREQ = 50
 
 
 logging.basicConfig()
@@ -163,7 +163,7 @@ def train(model_name,
     q_function.copy_weights(sess)
 
     logger.info('initializing environments...')
-    env = gym.make('CartPole-v1')
+    env = gym.make('CartPole-v0')
 
     epsilon = 0.9
     train_epoch = 0
@@ -192,15 +192,15 @@ def train(model_name,
           q_value = q_function.predict(sess, state)
           action = epsilon_greedy(q_value, epsilon)
           next_state, reward, done, _ = env.step(action)
-          if done:
-            reward = -500
+          #  if done:
+          #    reward = -1000
           replay_buffer.append((state, action, reward, next_state, done))
           state = next_state
 
           if train_epoch % save_epoch == 0:
-            epsilon *= 0.99
+            epsilon *= 0.9
 
-          if len(replay_buffer) >= replay_buffer_size:
+          if len(replay_buffer) >= batch_size:
             state_batch = []
             action_batch = []
             reward_batch = []
@@ -221,7 +221,7 @@ def train(model_name,
             done_batch = np.array(done_batch)
 
             next_q_values = q_function.predict_batch(sess, next_state_batch)
-            next_q_values = next_q_values.max(axis=1)
+            next_q_values = next_q_values[action_batch == 1]
             loss = q_function.train(sess, state_batch, action_batch,
               reward_batch, done_batch, next_q_values)
             train_epoch += 1
