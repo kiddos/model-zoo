@@ -8,28 +8,33 @@ from argparse import ArgumentParser
 from collections import deque
 
 
+HIDDEN_SIZE = 128
+LEARNING_RATE = 1e-3
+TAU = 1e0
+DISCOUNT_FACTOR = 0.99
+UPDATE_FREQ = 50
+
+
 logging.basicConfig()
 logger = logging.getLogger('CartPole v0')
 logger.setLevel(logging.INFO)
 
 
 class QFunction(object):
-  def __init__(self, hidden_size, learning_rate, tau):
-    self.hidden_size = hidden_size
-
+  def __init__(self):
     with tf.device('/cpu:0'):
-      self.learning_rate = tf.Variable(learning_rate, trainable=False)
+      self.learning_rate = tf.Variable(LEARNING_RATE, trainable=False)
     self._setup_inputs()
 
     with tf.variable_scope('train'):
-      self.train_q_value = self._build_model(trainable=True)
+      self.train_q_value = self._inference(True)
     with tf.variable_scope('target'):
-      self.target_q_value = self._build_model(trainable=False)
-    self._setup_update_ops(tau)
+      self.target_q_value = self._inference(False)
+    self._setup_update_ops()
 
     with tf.name_scope('loss'):
-      target = 0.99 * tf.cast(tf.logical_not(self.done), tf.float32) * \
-        tf.reduce_sum(self.action * self.next_q_values, axis=1) + self.reward
+      not_done = tf.cast(tf.logical_not(self.done), tf.float32)
+      target = self.reward + not_done * self.next_q_values
       train_q = tf.reduce_sum(self.action * self.train_q_value, axis=1)
       self.loss = tf.reduce_mean(tf.square(target - train_q))
     with tf.name_scope('train_ops'):
@@ -42,36 +47,37 @@ class QFunction(object):
     self.action = tf.placeholder(dtype=tf.float32,
       shape=[None, 2], name='action')
     self.reward = tf.placeholder(dtype=tf.float32,
-      shape=[None, 1], name='reward')
+      shape=[None], name='reward')
     self.done = tf.placeholder(dtype=tf.bool,
-      shape=[None, 1], name='done')
+      shape=[None], name='done')
     self.next_q_values = tf.placeholder(dtype=tf.float32,
-      shape=[None, 2], name='next_state')
+      shape=[None], name='max_q')
 
-  def _build_model(self, trainable):
-    with tf.name_scope('hidden'):
-      w = tf.get_variable(name='iw', shape=[4, self.hidden_size],
-        initializer=tf.random_normal_initializer(stddev=np.sqrt(0.5)),
+  def _inference(self, trainable):
+    with tf.name_scope('hidden1'):
+      w = tf.get_variable(name='iw', shape=[4, HIDDEN_SIZE],
+        initializer=tf.random_normal_initializer(stddev=np.sqrt(0.1)),
         trainable=trainable)
-      b = tf.get_variable(name='ib', shape=[self.hidden_size],
-        initializer=tf.constant_initializer(value=1.0),
+      b = tf.get_variable(name='ib', shape=[HIDDEN_SIZE],
+        initializer=tf.constant_initializer(value=1e-3),
         trainable=trainable)
-      h1 = tf.nn.relu(tf.matmul(self.state, w) + b)
+      h1 = tf.nn.tanh(tf.matmul(self.state, w) + b)
 
+    with tf.name_scope('hidden2'):
       w = tf.get_variable(name='hw',
-        shape=[self.hidden_size, self.hidden_size],
+        shape=[HIDDEN_SIZE, HIDDEN_SIZE],
         initializer=tf.random_normal_initializer(
-          stddev=np.sqrt(2.0/self.hidden_size)),
+          stddev=np.sqrt(2.0 / HIDDEN_SIZE)),
         trainable=trainable)
-      b = tf.get_variable(name='hb', shape=[self.hidden_size],
-        initializer=tf.constant_initializer(value=1.0),
+      b = tf.get_variable(name='hb', shape=[HIDDEN_SIZE],
+        initializer=tf.constant_initializer(value=1e-3),
         trainable=trainable)
-      h2 = tf.nn.relu(tf.matmul(h1, w) + b)
+      h2 = tf.nn.tanh(tf.matmul(h1, w) + b)
 
     with tf.name_scope('output'):
-      w = tf.get_variable(name='ow', shape=[self.hidden_size, 2],
+      w = tf.get_variable(name='ow', shape=[HIDDEN_SIZE, 2],
         initializer=tf.random_normal_initializer(stddev=np.sqrt(2.0 /
-          self.hidden_size)),
+          HIDDEN_SIZE)),
         trainable=trainable)
       b = tf.get_variable(name='ob', shape=[2],
         initializer=tf.constant_initializer(value=1e-3),
@@ -79,14 +85,14 @@ class QFunction(object):
       q_value = tf.matmul(h2, w) + b
     return q_value
 
-  def _setup_update_ops(self, tau):
+  def _setup_update_ops(self):
     train_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, 'train')
     target_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, 'target')
     with tf.name_scope('update'):
       self.update_target_vars = []
       for i in range(len(train_vars)):
         self.update_target_vars.append(tf.assign(target_vars[i],
-          target_vars[i] * (1.0 - tau) + train_vars[i] * tau))
+          target_vars[i] * (1.0 - TAU) + train_vars[i] * TAU))
     with tf.name_scope('copy'):
       self.copy_vars = []
       for i in range(len(train_vars)):
@@ -138,15 +144,15 @@ def setup_checkpoint(model_name):
   return os.path.join(model_path, model_name)
 
 
-def train(model_name, hidden_size, learning_rate, tau,
+def train(model_name,
     max_epoch, display_epoch, save_epoch, max_step, batch_size,
     replay_buffer_size,
     render=False, saving=False):
+  q_function = QFunction()
+
   if saving:
     saver = tf.train.Saver()
     checkpoint_path = setup_checkpoint(model_name)
-
-  q_function = QFunction(hidden_size, learning_rate, tau)
 
   config = tf.ConfigProto()
   config.gpu_options.allocator_type = 'BFC'
@@ -157,7 +163,7 @@ def train(model_name, hidden_size, learning_rate, tau,
     q_function.copy_weights(sess)
 
     logger.info('initializing environments...')
-    env = gym.make('CartPole-v1')
+    env = gym.make('CartPole-v0')
 
     epsilon = 0.9
     train_epoch = 0
@@ -186,13 +192,15 @@ def train(model_name, hidden_size, learning_rate, tau,
           q_value = q_function.predict(sess, state)
           action = epsilon_greedy(q_value, epsilon)
           next_state, reward, done, _ = env.step(action)
+          #  if done:
+          #    reward = -1000
           replay_buffer.append((state, action, reward, next_state, done))
           state = next_state
 
           if train_epoch % save_epoch == 0:
-            epsilon *= 0.999
+            epsilon *= 0.9
 
-          if len(replay_buffer) >= replay_buffer_size:
+          if len(replay_buffer) >= batch_size:
             state_batch = []
             action_batch = []
             reward_batch = []
@@ -203,9 +211,9 @@ def train(model_name, hidden_size, learning_rate, tau,
               state_batch.append(batch[0])
               action_batch.append([1 if a == batch[1] else 0
                 for a in range(2)])
-              reward_batch.append([batch[2]])
+              reward_batch.append(batch[2])
+              done_batch.append(batch[4])
               next_state_batch.append(batch[3])
-              done_batch.append([batch[4]])
             state_batch = np.array(state_batch)
             action_batch = np.array(action_batch)
             reward_batch = np.array(reward_batch)
@@ -213,14 +221,12 @@ def train(model_name, hidden_size, learning_rate, tau,
             done_batch = np.array(done_batch)
 
             next_q_values = q_function.predict_batch(sess, next_state_batch)
+            next_q_values = next_q_values[action_batch == 1]
             loss = q_function.train(sess, state_batch, action_batch,
               reward_batch, done_batch, next_q_values)
-            if train_epoch % display_epoch == 0:
-              logger.info('%d. episode: %d, loss: %f | QMax: %f' %
-                (train_epoch, epoch, loss, np.amax(next_q_values)))
             train_epoch += 1
 
-            if train_epoch % 100 == 0:
+            if train_epoch % UPDATE_FREQ == 0:
               q_function.update_target(sess)
 
             if train_epoch % save_epoch == 0 and train_epoch != 0 and saving:
@@ -230,22 +236,20 @@ def train(model_name, hidden_size, learning_rate, tau,
             while len(replay_buffer) > replay_buffer_size * 3:
               replay_buffer.pop()
 
+            if train_epoch % display_epoch == 0:
+              logger.info('%d. episode: %d, loss: %f | QMax: %f' %
+                (train_epoch, epoch, loss, np.amax(next_q_values)))
+
           if done:
             break
 
 
 def main():
   parser = ArgumentParser()
-  parser.add_argument('--learning-rate', dest='learning_rate',
-    default=1e-4, type=float, help='learning rate for training')
-  parser.add_argument('--tau', dest='tau',
-    default=1e-3, type=float, help='parameter control target weight transfer')
-  parser.add_argument('--hidden-size', dest='hidden_size',
-    default=512, type=int, help='hidden size for qfunction')
   parser.add_argument('--max-epoch', dest='max_epoch',
     default=10000, type=int, help='max epoch for training')
   parser.add_argument('--display-epoch', dest='display_epoch',
-    default=500, type=int, help='epoch for display')
+    default=50, type=int, help='epoch for display')
   parser.add_argument('--save-epoch', dest='save_epoch',
     default=1000, type=int, help='epoch for saving session')
   parser.add_argument('--max-step', dest='max_step',
@@ -262,7 +266,7 @@ def main():
     default='cart_dqn', help='model name')
   args = parser.parse_args()
 
-  train(args.model_name, args.hidden_size, args.learning_rate, args.tau,
+  train(args.model_name,
     args.max_epoch, args.display_epoch, args.save_epoch, args.max_step,
     args.batch_size, args.replay_buffer_size,
     render=args.render, saving=args.saving)
