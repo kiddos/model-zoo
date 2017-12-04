@@ -14,20 +14,21 @@ class PlantLoader(object):
     self.percent = training_percent
     if os.path.isfile(dbname):
       self.connection = sqlite3.connect(dbname)
-      self._load()
+      self.cursor = self.connection.cursor()
 
-  def _load(self):
-    self.cursor = self.connection.cursor()
+      self._setup()
+      self._load()
+      self.connection.close()
+
+  def _setup(self):
     self.cursor.execute("""SELECT * FROM meta;""")
     meta = self.cursor.fetchone()
-    width = meta[0]
-    height = meta[1]
-    channel = meta[2]
-
-    self.width = width
-    self.height = height
+    self.width = meta[0]
+    self.height = meta[1]
+    self.channel = meta[2]
     self.output_size = 12
 
+  def _load(self):
     logger.info('loading images and labels...')
     self.cursor.execute("""SELECT image, classes FROM plants;""")
     raw_data = self.cursor.fetchall()
@@ -36,7 +37,8 @@ class PlantLoader(object):
     self.labels = []
     for d in raw_data:
       img = np.frombuffer(d[0], np.uint8)
-      self.images.append(np.reshape(img, [height, width, channel]))
+      self.images.append(np.reshape(img,
+        [self.height, self.width, self.channel]))
       label = d[1] - 1
       self.labels.append([1 if label == l else 0
         for l in range(self.output_size)])
@@ -66,7 +68,8 @@ class PlantLoader(object):
     for d in raw_test_data:
       img = np.frombuffer(d[1], np.uint8)
       self.test_files.append(d[0])
-      self.test_images.append(np.reshape(img, [height, width, channel]))
+      self.test_images.append(np.reshape(img,
+        [self.height, self.width, self.channel]))
     self.test_images = np.array(self.test_images)
 
   def get_output_size(self):
@@ -112,18 +115,26 @@ def main():
   args = parser.parse_args()
 
   p = PlantLoader(args.dbname)
-  print(p.get_data().shape)
-  print(p.get_label().shape)
-  print(p.get_label_name())
+  logger.info('all data shape: %s' % str(p.get_data().shape))
+  logger.info('all label shape: %s' % str(p.get_label().shape))
+  assert len(p.get_data()) == len(p.get_label())
 
-  print(p.get_training_data().shape)
-  print(p.get_training_labels().shape)
+  logger.info('label names:')
+  for l in p.get_label_name():
+    logger.info(l[0])
+  assert len(p.get_label_name()) == p.get_output_size()
 
-  print(p.get_validation_data().shape)
-  print(p.get_validation_labels().shape)
+  logger.info('training data shape: %s' % str(p.get_training_data().shape))
+  logger.info('training label shape: %s' % str(p.get_training_labels().shape))
+  assert len(p.get_training_data()) == len(p.get_training_labels())
 
-  print(p.get_test_files())
-  print(p.get_test_images().shape)
+  logger.info('validation data shape: %s' % str(p.get_validation_data().shape))
+  logger.info('validation label shape: %s' %
+    str(p.get_validation_labels().shape))
+  assert len(p.get_validation_data()) == len(p.get_validation_labels())
+
+  logger.info('test data shape: %s' % str(p.get_test_images().shape))
+  assert len(p.get_test_images()) == len(p.get_test_files())
 
 
 if __name__ == '__main__':
