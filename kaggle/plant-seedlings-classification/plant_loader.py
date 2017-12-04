@@ -17,8 +17,12 @@ class PlantLoader(object):
       self.cursor = self.connection.cursor()
 
       self._setup()
-      self._load()
-      self.connection.close()
+    else:
+      logger.warning('%s not found' % (dbname))
+
+  def __del__(self):
+    logger.info('closing connection...')
+    self.connection.close()
 
   def _setup(self):
     self.cursor.execute("""SELECT * FROM meta;""")
@@ -28,7 +32,11 @@ class PlantLoader(object):
     self.channel = meta[2]
     self.output_size = 12
 
-  def _load(self):
+  def load_data(self):
+    if not hasattr(self, 'connection'):
+      logger.warning('db not found')
+      return
+
     logger.info('loading images and labels...')
     self.cursor.execute("""SELECT image, classes FROM plants;""")
     raw_data = self.cursor.fetchall()
@@ -115,6 +123,8 @@ def main():
   args = parser.parse_args()
 
   p = PlantLoader(args.dbname)
+  p.load_data()
+
   logger.info('all data shape: %s' % str(p.get_data().shape))
   logger.info('all label shape: %s' % str(p.get_label().shape))
   assert len(p.get_data()) == len(p.get_label())
