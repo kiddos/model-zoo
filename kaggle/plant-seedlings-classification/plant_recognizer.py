@@ -209,6 +209,8 @@ def train(dbname, args):
   else:
     training_data = loader.get_training_data()
     training_labels = loader.get_training_labels()
+  logger.info(training_data.shape)
+  logger.info(training_labels.shape)
 
   validation_data = loader.get_validation_data()
   validation_labels = loader.get_validation_labels()
