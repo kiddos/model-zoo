@@ -61,13 +61,13 @@ class PlantLoader(object):
     training_size = int(data_size * self.percent)
     training_index = index[:training_size]
     validation_index = index[training_size:]
-    self.training_data = self.images[training_index, :]
-    self.training_label = self.labels[training_index, :]
-    self.validation_data = self.images[validation_index, :]
-    self.validation_label = self.labels[validation_index, :]
+    self.training_data = np.copy(self.images[training_index, :])
+    self.training_label = np.copy(self.labels[training_index, :])
+    self.validation_data = np.copy(self.images[validation_index, :])
+    self.validation_label = np.copy(self.labels[validation_index, :])
 
-    self.images = self.images[index, :]
-    self.labels = self.labels[index, :]
+    self.images = np.copy(self.images[index, :])
+    self.labels = np.copy(self.labels[index, :])
 
     self.cursor.execute("""SELECT fileName, image FROM test;""")
     raw_test_data = self.cursor.fetchall()
