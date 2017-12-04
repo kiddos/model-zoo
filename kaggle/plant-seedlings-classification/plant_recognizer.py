@@ -2,6 +2,7 @@ import tensorflow as tf
 import numpy as np
 import logging
 import os
+import time
 from argparse import ArgumentParser
 
 from plant_loader import PlantLoader
@@ -14,7 +15,10 @@ logger.setLevel(logging.INFO)
 
 class PlantRecognizer(object):
   def __init__(self, learning_rate, input_width, input_height, output_size):
-    self.learning_rate = tf.Variable(learning_rate, trainable=False)
+    self.learning_rate = tf.Variable(learning_rate, trainable=False,
+      name='learning_rate')
+    self.decay_lr = tf.assign(self.learning_rate, self.learning_rate * 0.9)
+
     self.input_width = input_width
     self.input_height = input_height
     self.output_size = output_size
@@ -74,26 +78,104 @@ class PlantRecognizer(object):
       tf.summary.image(name='validation_input', tensor=self.validation_inputs)
 
   def _inference(self, inputs):
+    stddev = 0.05
     with tf.name_scope('conv1'):
-      conv1 = tf.contrib.layers.conv2d(inputs, 32, stride=1, kernel_size=5,
-        weights_initializer=tf.random_normal_initializer(stddev=0.0004))
-      pool1 = tf.contrib.layers.max_pool2d(conv1, 2)
+      conv = tf.contrib.layers.conv2d(inputs, 32, stride=1, kernel_size=3,
+        weights_initializer=tf.random_normal_initializer(stddev=0.0006))
 
     with tf.name_scope('conv2'):
-      conv2 = tf.contrib.layers.conv2d(pool1, 64, stride=1, kernel_size=5,
-        weights_initializer=tf.random_normal_initializer(stddev=0.03))
-      pool2 = tf.contrib.layers.max_pool2d(conv2, kernel_size=2)
+      conv = tf.contrib.layers.conv2d(conv, 32, stride=1, kernel_size=3,
+        weights_initializer=tf.random_normal_initializer(stddev=stddev))
 
     with tf.name_scope('conv3'):
-      conv3 = tf.contrib.layers.conv2d(pool2, 128, stride=1, kernel_size=5,
-        weights_initializer=tf.random_normal_initializer(stddev=0.03))
-      pool3 = tf.contrib.layers.max_pool2d(conv3, kernel_size=2)
+      conv = tf.contrib.layers.conv2d(conv, 32, stride=1, kernel_size=3,
+        weights_initializer=tf.random_normal_initializer(stddev=stddev))
+
+    with tf.name_scope('pool3'):
+      pool = tf.contrib.layers.max_pool2d(conv, 2)
+
+    with tf.name_scope('conv4'):
+      conv = tf.contrib.layers.conv2d(pool, 64, stride=1, kernel_size=3,
+        weights_initializer=tf.random_normal_initializer(stddev=stddev))
+
+    with tf.name_scope('conv5'):
+      conv = tf.contrib.layers.conv2d(conv, 64, stride=1, kernel_size=3,
+        weights_initializer=tf.random_normal_initializer(stddev=stddev))
+
+    with tf.name_scope('conv6'):
+      conv = tf.contrib.layers.conv2d(conv, 64, stride=1, kernel_size=3,
+        weights_initializer=tf.random_normal_initializer(stddev=stddev))
+
+    with tf.name_scope('pool6'):
+      pool = tf.contrib.layers.max_pool2d(conv, kernel_size=2)
+
+    with tf.name_scope('conv7'):
+      conv = tf.contrib.layers.conv2d(pool, 128, stride=1, kernel_size=3,
+        weights_initializer=tf.random_normal_initializer(stddev=stddev))
+
+    with tf.name_scope('conv8'):
+      conv = tf.contrib.layers.conv2d(conv, 128, stride=1, kernel_size=3,
+        weights_initializer=tf.random_normal_initializer(stddev=stddev))
+
+    with tf.name_scope('conv9'):
+      conv = tf.contrib.layers.conv2d(conv, 128, stride=1, kernel_size=3,
+        weights_initializer=tf.random_normal_initializer(stddev=stddev))
+
+    with tf.name_scope('pool9'):
+      pool = tf.contrib.layers.max_pool2d(conv, kernel_size=2)
+
+    with tf.name_scope('conv10'):
+      conv = tf.contrib.layers.conv2d(pool, 256, stride=1, kernel_size=3,
+        weights_initializer=tf.random_normal_initializer(stddev=stddev))
+
+    with tf.name_scope('conv11'):
+      conv = tf.contrib.layers.conv2d(conv, 256, stride=1, kernel_size=3,
+        weights_initializer=tf.random_normal_initializer(stddev=stddev))
+
+    with tf.name_scope('conv12'):
+      conv = tf.contrib.layers.conv2d(conv, 256, stride=1, kernel_size=3,
+        weights_initializer=tf.random_normal_initializer(stddev=stddev))
 
     with tf.name_scope('fully_connected'):
-      connect_shape = pool3.get_shape().as_list()
+      connect_shape = conv.get_shape().as_list()
       connect_size = connect_shape[1] * connect_shape[2] * connect_shape[3]
       fc = tf.contrib.layers.fully_connected(
-        tf.reshape(pool3, [-1, connect_size]), 4096,
+        tf.reshape(conv, [-1, connect_size]), 4096,
+        weights_initializer=tf.random_normal_initializer(stddev=0.02))
+
+    with tf.name_scope('output'):
+      logits = tf.contrib.layers.fully_connected(fc, self.output_size,
+        activation_fn=None)
+      outputs = tf.nn.softmax(logits)
+    return logits, outputs
+
+  def _inference_v0(self, inputs):
+    with tf.name_scope('conv1'):
+      conv = tf.contrib.layers.conv2d(inputs, 32, stride=1, kernel_size=5,
+        weights_initializer=tf.random_normal_initializer(stddev=0.0006))
+
+    with tf.name_scope('pool1'):
+      pool = tf.contrib.layers.max_pool2d(conv, 2)
+
+    with tf.name_scope('conv2'):
+      conv = tf.contrib.layers.conv2d(pool, 64, stride=1, kernel_size=5,
+        weights_initializer=tf.random_normal_initializer(stddev=0.03))
+
+    with tf.name_scope('pool2'):
+      pool = tf.contrib.layers.max_pool2d(conv, kernel_size=2)
+
+    with tf.name_scope('conv3'):
+      conv = tf.contrib.layers.conv2d(pool, 128, stride=1, kernel_size=5,
+        weights_initializer=tf.random_normal_initializer(stddev=0.03))
+
+    with tf.name_scope('pool3'):
+      pool = tf.contrib.layers.max_pool2d(conv, kernel_size=2)
+
+    with tf.name_scope('fully_connected'):
+      connect_shape = pool.get_shape().as_list()
+      connect_size = connect_shape[1] * connect_shape[2] * connect_shape[3]
+      fc = tf.contrib.layers.fully_connected(
+        tf.reshape(pool, [-1, connect_size]), 4096,
         weights_initializer=tf.random_normal_initializer(stddev=0.02))
 
     with tf.name_scope('output'):
@@ -144,6 +226,7 @@ def train(dbname, args):
 
     data_size = len(training_data)
     batch_size = args.batch_size
+    total_time = 0
     for epoch in range(args.max_epoches + 1):
       offset = epoch % (data_size - batch_size)
 
@@ -163,13 +246,31 @@ def train(dbname, args):
             recognizer.validation_inputs: validation_data[o:o+batch_size, :],
             recognizer.validation_labels: validation_labels[o:o+batch_size, :],
           })
+        if epoch != 0:
+          ave = total_time / epoch
+          remaining = (args.max_epoches - epoch) / ave
+        else: remaining = 0.0
+        remaining = int(remaining / 1000)
+        days = int(remaining / 86400)
+        remaining %= 86400
+
+        hours = int(remaining / 3600)
+        remaining %= 3600
+
+        minutes = int(remaining / 60)
+        sec = remaining % 60
         logger.info('%d. loss: %f | training : %f | validation: %f' %
           (epoch, loss, train_accuracy, valid_accuarcy))
+        logger.info('time remaining: %d days %d:%d:%d' %
+          (days, hours, minutes, sec))
 
+      start = time.time()
       sess.run(recognizer.train_ops, feed_dict={
         recognizer.inputs: data_batch,
         recognizer.labels: label_batch,
       })
+      passed = time.time() - start
+      total_time += passed
 
       if epoch % args.save_epoch == 0 and args.saving and epoch != 0:
         saver.save(sess, checkpoint, global_step=epoch)
@@ -231,11 +332,11 @@ def main():
   parser.add_argument('--load-all', dest='load_all', default=False,
     type=bool, help='load all data to train')
 
-  parser.add_argument('--learning-rate', dest='learning_rate', default=1e-3,
+  parser.add_argument('--learning-rate', dest='learning_rate', default=1e-4,
     type=float, help='learning rate to train model')
   parser.add_argument('--max-epoches', dest='max_epoches', default=60000,
     type=int, help='max epoches to train model')
-  parser.add_argument('--display-epoches', dest='display_epoch', default=100,
+  parser.add_argument('--display-epoches', dest='display_epoch', default=50,
     type=int, help='epoches to evaluation')
   parser.add_argument('--save-epoches', dest='save_epoch', default=1000,
     type=int, help='epoches to save model')
