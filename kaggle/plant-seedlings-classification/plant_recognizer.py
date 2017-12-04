@@ -115,6 +115,8 @@ def prepare_folder():
 
 def train(dbname, args):
   loader = PlantLoader(dbname)
+  loader.load_data()
+
   recognizer = PlantRecognizer(
     args.learning_rate, loader.get_width(), loader.get_height(),
     loader.get_output_size())
@@ -181,6 +183,44 @@ def train(dbname, args):
         summary_writer.add_summary(summary, global_step=epoch)
 
 
+def checkpoint_valid(checkpoint):
+  return os.path.isfile(checkpoint + '.meta') and \
+      os.path.isfile(checkpoint + '.index')
+
+
+def recognize(dbname, args):
+  loader = PlantLoader(dbname)
+  loader.load_data()
+
+  recognizer = PlantRecognizer(0, loader.get_width(), loader.get_height(),
+    loader.get_output_size())
+
+  if hasattr(args, 'checkpoint') and checkpoint_valid(args.checkpoint):
+    logger.info('loading %s...' % args.checkpoint)
+    saver = tf.train.Saver()
+    with tf.Session() as sess:
+      logger.info('restoring %s...' % (args.checkpoint))
+      saver.restore(sess, args.checkpoint)
+
+      label_name = loader.get_label_name()
+      test_images = loader.get_test_images()
+      test_files = loader.get_test_files()
+      with open(args.output_file, 'w') as f:
+        f.write('file,species\n')
+
+        for i in range(len(test_images)):
+          img = test_images[i:i+1]
+          filename = test_files[i]
+
+          output = sess.run(recognizer.outputs, feed_dict={
+            recognizer.inputs: img
+          })
+          result = label_name[np.argmax(output, axis=1)[0]][0]
+          f.write('%s,%s\n' % (filename, result))
+  else:
+    logger.warning('%s not valid checkpoint' % args.checkpoint)
+
+
 def main():
   parser = ArgumentParser()
   parser.add_argument('--dbname', dest='dbname', default='plants.sqlite3',
@@ -203,10 +243,16 @@ def main():
     type=int, help='batch size to train model')
   parser.add_argument('--saving', dest='saving', default=False,
     type=bool, help='rather to save model or not')
+
+  parser.add_argument('--checkpoint', dest='checkpoint',
+    type=str, help='checkpoint to load for recognition')
+  parser.add_argument('--output-file', dest='output_file', default='output.csv')
   args = parser.parse_args()
 
   if args.mode == 'train':
     train(args.dbname, args)
+  elif args.mode == 'test':
+    recognize(args.dbname, args)
 
 
 if __name__ == '__main__':
