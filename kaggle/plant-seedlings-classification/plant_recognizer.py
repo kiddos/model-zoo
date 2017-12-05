@@ -401,7 +401,10 @@ def recognize(dbname, args):
   if hasattr(args, 'checkpoint') and checkpoint_valid(args.checkpoint):
     logger.info('loading %s...' % args.checkpoint)
     saver = tf.train.Saver()
-    with tf.Session() as sess:
+
+    config = tf.ConfigProto()
+    config.gpu_options.allocator_type = 'BFC'
+    with tf.Session(config=config) as sess:
       logger.info('restoring %s...' % (args.checkpoint))
       saver.restore(sess, args.checkpoint)
 
