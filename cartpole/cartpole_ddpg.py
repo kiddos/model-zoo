@@ -1,3 +1,5 @@
+from __future__ import print_function
+
 import tensorflow as tf
 import numpy as np
 import gym
@@ -12,13 +14,11 @@ logger = logging.getLogger('cartpole ddpg')
 logger.setLevel(logging.INFO)
 
 
-DISCOUNT_FACTOR = 0.99
-
-
 class Critic(object):
-  HIDDEN_SIZE = 128
-  TAU = 1e-3
+  HIDDEN_SIZE = 256
+  TAU = 3e-3
   LEARNING_RATE = 1e-3
+  DISCOUNT_FACTOR = 0.99
 
   def __init__(self):
     self.learning_rate = tf.Variable(self.LEARNING_RATE, trainable=False)
@@ -36,13 +36,14 @@ class Critic(object):
 
     with tf.name_scope('loss'):
       not_done = tf.cast(tf.logical_not(self.done), tf.float32)
-      target = self.reward + not_done * self.next_q_value
-      out = tf.reduce_sum(self.action * self.train_output, axis=1)
-      self.loss = tf.reduce_mean(tf.square(out - target))
+      target = self.reward + self.DISCOUNT_FACTOR * \
+        not_done * self.next_q_value
+      self.loss = tf.reduce_mean(
+        tf.square(tf.squeeze(self.train_output) - target))
 
     with tf.name_scope('optimization'):
       learning_rate = tf.Variable(self.LEARNING_RATE, trainable=False)
-      optimizer = tf.train.GradientDescentOptimizer(learning_rate)
+      optimizer = tf.train.AdamOptimizer(learning_rate)
       self.train_ops = optimizer.minimize(self.loss)
 
   def _setup_inputs(self):
@@ -60,19 +61,31 @@ class Critic(object):
 
   def _inference(self, trainable):
     with tf.name_scope('state_input'):
+      stddev = np.sqrt(2.0 / 4)
       s = tf.contrib.layers.fully_connected(self.state, self.HIDDEN_SIZE,
-        trainable=trainable)
+        trainable=trainable, activation_fn=None,
+        weights_initializer=tf.random_normal_initializer(stddev=stddev))
 
     with tf.name_scope('action_input'):
+      stddev = np.sqrt(2.0 / 2)
       a = tf.contrib.layers.fully_connected(self.action, self.HIDDEN_SIZE,
-        trainable=trainable)
+        trainable=trainable, activation_fn=None,
+        weights_initializer=tf.random_normal_initializer(stddev=stddev))
 
-    with tf.name_scope('hidden'):
-      h = tf.concat([s, a], axis=1)
+    with tf.name_scope('hidden1'):
+      #  h = tf.concat([s, a], axis=1)
+      h = tf.nn.relu(a + s)
+
+    with tf.name_scope('hidden2'):
+      stddev = np.sqrt(2.0 / self.HIDDEN_SIZE)
+      h = tf.contrib.layers.fully_connected(h, self.HIDDEN_SIZE,
+        trainable=trainable,
+        weights_initializer=tf.random_normal_initializer(stddev=stddev))
 
     with tf.name_scope('output'):
-      output = tf.contrib.layers.fully_connected(h, 2, activation_fn=None,
-        trainable=trainable)
+      output = tf.contrib.layers.fully_connected(h, 1, activation_fn=None,
+        trainable=trainable,
+        weights_initializer=tf.random_normal_initializer(stddev=stddev))
     return output
 
   def _setup_copy_ops(self):
@@ -130,8 +143,8 @@ class Critic(object):
 
 class Actor(object):
   HIDDEN_SIZE = 128
-  TAU = 1e-3
-  LEARNING_RATE = 1e-3
+  TAU = 1e-1
+  LEARNING_RATE = 1e-5
 
   def __init__(self):
     self._setup_inputs()
@@ -147,8 +160,8 @@ class Actor(object):
       'actor_train')
     with tf.name_scope('optimization'):
       learning_rate = tf.Variable(self.LEARNING_RATE, trainable=False)
-      grad = tf.gradients(self.train_output, train_vars, self.action_grad)
-      optimizer = tf.train.GradientDescentOptimizer(learning_rate)
+      grad = tf.gradients(self.train_output, train_vars, -self.action_grad)
+      optimizer = tf.train.AdamOptimizer(learning_rate)
       self.train_ops = optimizer.apply_gradients(zip(grad, train_vars))
       self.decay_lr = tf.assign(learning_rate, learning_rate * 0.9)
 
@@ -178,17 +191,23 @@ class Actor(object):
 
   def _inference(self, trainable):
     with tf.name_scope('fc1'):
+      stddev = np.sqrt(2.0 / 4)
       h1 = tf.contrib.layers.fully_connected(self.state, self.HIDDEN_SIZE,
-        trainable=trainable)
+        trainable=trainable,
+        weights_initializer=tf.random_normal_initializer(stddev=stddev))
 
     with tf.name_scope('fc2'):
+      stddev = np.sqrt(2.0 / self.HIDDEN_SIZE)
       h2 = tf.contrib.layers.fully_connected(h1, self.HIDDEN_SIZE,
-        trainable=trainable)
+        trainable=trainable,
+        weights_initializer=tf.random_normal_initializer(stddev=stddev))
 
     with tf.name_scope('output'):
+      stddev = np.sqrt(2.0 / self.HIDDEN_SIZE)
       output = tf.nn.softmax(
         tf.contrib.layers.fully_connected(h2, 2, activation_fn=None,
-        trainable=trainable))
+        trainable=trainable,
+        weights_initializer=tf.random_normal_initializer(stddev=stddev)))
     return output
 
   def run_copy_ops(self, sess):
@@ -230,9 +249,9 @@ def main():
   parser.add_argument('--max-steps', dest='max_step',
     default=500, type=int, help='max step to run a episode')
   parser.add_argument('--batch-size', dest='batch_size',
-    default=32, type=int, help='batch size to train policy gradient')
+    default=64, type=int, help='batch size to train policy gradient')
   parser.add_argument('--buffer-size', dest='buffer_size',
-    default=10000, type=int, help='replay buffer max size')
+    default=5000, type=int, help='replay buffer max size')
 
   args = parser.parse_args()
 
@@ -254,19 +273,22 @@ def main():
 
     train_epoch = 0
     epsilon = 0.9
-    for episode in range(args.max_episode):
+    for episode in range(args.max_episode + 1):
       state = env.reset()
 
       for t in range(args.max_step):
         action_pred = actor.predict(sess, state)
         action = epsilon_greedy_policy(action_pred[0], epsilon)
+        print(action, end=' ')
         next_state, reward, done, _ = env.step(action)
         replay_buffer.append((state, action, reward, next_state, done))
+        #  replay_buffer.append((state, action_pred[0, :], reward, next_state, done))
         state = next_state
 
         if len(replay_buffer) > args.batch_size:
           batch = random.sample(replay_buffer, args.batch_size)
           state_batch = np.array([b[0] for b in batch])
+          #  action_batch = np.array([b[1] for b in batch])
           action_batch = np.array([[1 if l == b[1] else 0 for l in range(2)]
             for b in batch])
           reward_batch = np.array([b[2] for b in batch])
@@ -274,18 +296,26 @@ def main():
           done_batch = np.array([b[4] for b in batch])
 
           # train critic
+          next_action_batch = actor.predict_batch(sess, next_state_batch)
           next_q_values = critic.predict_batch(sess, next_state_batch,
-            action_batch)
+            next_action_batch)
+          #  loss = critic.train(sess, state_batch, action_batch, reward_batch,
+          #    done_batch, next_q_values[action_batch == 1])
           loss = critic.train(sess, state_batch, action_batch, reward_batch,
-            done_batch, next_q_values[action_batch == 1])
-
-          if train_epoch % 100 == 0:
-            logger.info('%d. episode: %d | loss: %f, max q: %f' % (
-              train_epoch, episode, loss, next_q_values.max()))
+            done_batch, np.squeeze(next_q_values))
 
           # train actor
           action_grad = critic.get_action_grad(sess, state_batch, action_batch)
           actor.train(sess, state_batch, action_grad[0])
+
+          if train_epoch % 100 == 0:
+            print(action_pred, epsilon)
+            #  print(action_grad)
+            print(action_grad[0][0:10, :])
+            #  print(action_batch)
+            logger.info('%d. episode: %d | loss: %f, max q: %f | epsilon: %f'
+              % (train_epoch, episode, loss, next_q_values.max(), epsilon))
+
 
           critic.run_update_ops(sess)
           actor.run_update_ops(sess)
@@ -295,10 +325,12 @@ def main():
           while len(replay_buffer) > args.buffer_size:
             replay_buffer.popleft()
 
+          if train_epoch % 100 == 0:
+            # decay epsilon greedy policy
+            epsilon *= 0.9
+
         if done:
           break
-      # decay epsilon greedy policy
-      epsilon *= 0.9
 
 
 if __name__ == '__main__':
