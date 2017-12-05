@@ -19,7 +19,8 @@ class PlantRecognizer(object):
       learning_rate, input_width, input_height, output_size):
     self.learning_rate = tf.Variable(learning_rate, trainable=False,
       name='learning_rate')
-    self.decay_lr = tf.assign(self.learning_rate, self.learning_rate * 0.9)
+    if learning_rate != 0:
+      self.decay_lr = tf.assign(self.learning_rate, self.learning_rate * 0.9)
 
     self.input_width = input_width
     self.input_height = input_height
@@ -89,23 +90,25 @@ class PlantRecognizer(object):
       tf.summary.image(name='validation_input', tensor=self.validation_inputs)
 
   def inference_v0(self, inputs):
+    stddev = 0.03
+    ksize = 7
     with tf.name_scope('conv1'):
-      conv = tf.contrib.layers.conv2d(inputs, 32, stride=1, kernel_size=5,
+      conv = tf.contrib.layers.conv2d(inputs, 32, stride=1, kernel_size=ksize,
         weights_initializer=tf.random_normal_initializer(stddev=0.0006))
 
     with tf.name_scope('pool1'):
       pool = tf.contrib.layers.max_pool2d(conv, 2)
 
     with tf.name_scope('conv2'):
-      conv = tf.contrib.layers.conv2d(pool, 64, stride=1, kernel_size=5,
-        weights_initializer=tf.random_normal_initializer(stddev=0.03))
+      conv = tf.contrib.layers.conv2d(pool, 64, stride=1, kernel_size=ksize,
+        weights_initializer=tf.random_normal_initializer(stddev=stddev))
 
     with tf.name_scope('pool2'):
       pool = tf.contrib.layers.max_pool2d(conv, kernel_size=2)
 
     with tf.name_scope('conv3'):
-      conv = tf.contrib.layers.conv2d(pool, 128, stride=1, kernel_size=5,
-        weights_initializer=tf.random_normal_initializer(stddev=0.03))
+      conv = tf.contrib.layers.conv2d(pool, 128, stride=1, kernel_size=ksize,
+        weights_initializer=tf.random_normal_initializer(stddev=stddev))
 
     with tf.name_scope('pool3'):
       pool = tf.contrib.layers.max_pool2d(conv, kernel_size=2)
@@ -113,13 +116,17 @@ class PlantRecognizer(object):
     with tf.name_scope('fully_connected'):
       connect_shape = pool.get_shape().as_list()
       connect_size = connect_shape[1] * connect_shape[2] * connect_shape[3]
+      stddev = np.sqrt(2.0 / connect_size)
+      fc_size = 4096
       fc = tf.contrib.layers.fully_connected(
-        tf.reshape(pool, [-1, connect_size]), 4096,
-        weights_initializer=tf.random_normal_initializer(stddev=0.02))
+        tf.reshape(pool, [-1, connect_size]), fc_size,
+        weights_initializer=tf.random_normal_initializer(stddev=stddev))
 
     with tf.name_scope('output'):
+      stddev = np.sqrt(2.0 / fc_size)
       logits = tf.contrib.layers.fully_connected(fc, self.output_size,
-        activation_fn=None)
+        activation_fn=None,
+        weights_initializer=tf.random_normal_initializer(stddev=stddev))
       outputs = tf.nn.softmax(logits)
     return logits, outputs
 
@@ -210,12 +217,12 @@ class PlantRecognizer(object):
       stddev = np.sqrt(2.0 / fc_size)
       logits = tf.contrib.layers.fully_connected(fc, self.output_size,
         activation_fn=None,
-        weight_initializer=tf.random_normal_initializer(stddev=stddev))
+        weights_initializer=tf.random_normal_initializer(stddev=stddev))
       outputs = tf.nn.softmax(logits)
     return logits, outputs
 
   def inference_v3(self, inputs):
-    stddev = 0.05
+    stddev = 0.066
     ksize = 3
     with tf.name_scope('conv1'):
       conv = tf.contrib.layers.conv2d(inputs, 4, stride=1, kernel_size=ksize,
@@ -223,7 +230,7 @@ class PlantRecognizer(object):
 
     with tf.name_scope('conv2'):
       conv = tf.contrib.layers.conv2d(conv, 4, stride=1, kernel_size=ksize,
-        weights_initializer=tf.random_normal_initializer(stddev=0.0006))
+        weights_initializer=tf.random_normal_initializer(stddev=stddev))
 
     with tf.name_scope('pool2'):
       pool = tf.contrib.layers.max_pool2d(conv, 2)
@@ -280,7 +287,6 @@ class PlantRecognizer(object):
     return folder
 
 
-
 def train(dbname, args):
   loader = PlantLoader(dbname)
   loader.load_data()
@@ -303,7 +309,7 @@ def train(dbname, args):
 
   if args.saving:
     saver = tf.train.Saver()
-    folder = recognize.prepare_folder()
+    folder = recognizer.prepare_folder()
     checkpoint = os.path.join(folder, 'plant-recognizer')
 
     summary_writer = tf.summary.FileWriter(os.path.join(folder, 'summary'),
@@ -410,7 +416,8 @@ def recognize(dbname, args):
           filename = test_files[i]
 
           output = sess.run(recognizer.outputs, feed_dict={
-            recognizer.inputs: img
+            recognizer.inputs: img,
+            recognizer.keep_prob: 1.0
           })
           result = label_name[np.argmax(output, axis=1)[0]][0]
           f.write('%s,%s\n' % (filename, result))
