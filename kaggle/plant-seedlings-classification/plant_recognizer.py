@@ -25,8 +25,9 @@ class PlantRecognizer(object):
 
     self._setup_inputs()
 
+    inference = self._inference_v2
     with tf.variable_scope('inference'):
-      logits, self.outputs = self._inference(self.inputs)
+      logits, self.outputs = inference(self.inputs)
 
     with tf.name_scope('loss'):
       self.loss = tf.reduce_mean(
@@ -41,7 +42,7 @@ class PlantRecognizer(object):
         global_step=self.global_step)
 
     with tf.variable_scope('inference', reuse=True):
-      _, self.validation_outputs = self._inference(self.validation_inputs)
+      _, self.validation_outputs = inference(self.validation_inputs)
 
     with tf.name_scope('evalutation'):
       self.validation_accuracy = self.evaluate(self.validation_outputs,
@@ -68,6 +69,8 @@ class PlantRecognizer(object):
         shape=[None, self.input_height, self.input_width, 3])
       self.labels = tf.placeholder(dtype=tf.float32, name='labels',
         shape=[None, self.output_size])
+      self.keep_prob = tf.placeholder(dtype=tf.float32, name='keep_prob',
+        shape=[])
 
       self.validation_inputs = tf.placeholder(dtype=tf.float32,
         name='valid_inputs',
@@ -184,6 +187,71 @@ class PlantRecognizer(object):
       outputs = tf.nn.softmax(logits)
     return logits, outputs
 
+  def _inference_v2(self, inputs):
+    stddev = 0.05
+    ksize = 3
+    with tf.name_scope('conv1'):
+      conv = tf.contrib.layers.conv2d(inputs, 4, stride=1, kernel_size=ksize,
+        weights_initializer=tf.random_normal_initializer(stddev=0.0006))
+
+    with tf.name_scope('conv2'):
+      conv = tf.contrib.layers.conv2d(inputs, 4, stride=1, kernel_size=ksize,
+        weights_initializer=tf.random_normal_initializer(stddev=stddev))
+
+    with tf.name_scope('conv3'):
+      conv = tf.contrib.layers.conv2d(inputs, 4, stride=1, kernel_size=ksize,
+        weights_initializer=tf.random_normal_initializer(stddev=stddev))
+
+    with tf.name_scope('pool3'):
+      pool = tf.contrib.layers.max_pool2d(conv, 2)
+
+    with tf.name_scope('conv4'):
+      conv = tf.contrib.layers.conv2d(pool, 8, stride=1, kernel_size=ksize,
+        weights_initializer=tf.random_normal_initializer(stddev=stddev))
+
+    with tf.name_scope('conv5'):
+      conv = tf.contrib.layers.conv2d(pool, 8, stride=1, kernel_size=ksize,
+        weights_initializer=tf.random_normal_initializer(stddev=stddev))
+
+    with tf.name_scope('conv6'):
+      conv = tf.contrib.layers.conv2d(pool, 8, stride=1, kernel_size=ksize,
+        weights_initializer=tf.random_normal_initializer(stddev=stddev))
+
+    with tf.name_scope('pool6'):
+      pool = tf.contrib.layers.max_pool2d(conv, kernel_size=2)
+
+    with tf.name_scope('conv7'):
+      conv = tf.contrib.layers.conv2d(pool, 16, stride=1, kernel_size=ksize,
+        weights_initializer=tf.random_normal_initializer(stddev=stddev))
+
+    with tf.name_scope('conv8'):
+      conv = tf.contrib.layers.conv2d(pool, 16, stride=1, kernel_size=ksize,
+        weights_initializer=tf.random_normal_initializer(stddev=stddev))
+
+    with tf.name_scope('conv9'):
+      conv = tf.contrib.layers.conv2d(pool, 16, stride=1, kernel_size=ksize,
+        weights_initializer=tf.random_normal_initializer(stddev=stddev))
+
+    with tf.name_scope('pool9'):
+      pool = tf.contrib.layers.max_pool2d(conv, kernel_size=2)
+
+    with tf.name_scope('drop1'):
+      drop = tf.nn.dropout(pool, keep_prob=self.keep_prob)
+
+    with tf.name_scope('fully_connected'):
+      connect_shape = drop.get_shape().as_list()
+      connect_size = connect_shape[1] * connect_shape[2] * connect_shape[3]
+      stddev = np.sqrt(2.0 / connect_size)
+      fc = tf.contrib.layers.fully_connected(
+        tf.reshape(drop, [-1, connect_size]), 2048,
+        weights_initializer=tf.random_normal_initializer(stddev=stddev))
+
+    with tf.name_scope('output'):
+      logits = tf.contrib.layers.fully_connected(fc, self.output_size,
+        activation_fn=None)
+      outputs = tf.nn.softmax(logits)
+    return logits, outputs
+
 
 def prepare_folder():
   index = 0
@@ -247,12 +315,14 @@ def train(dbname, args):
             recognizer.labels: label_batch,
             recognizer.validation_inputs: validation_data[o:o+batch_size, :],
             recognizer.validation_labels: validation_labels[o:o+batch_size, :],
+            recognizer.keep_prob: 1.0,
           })
+        ave = 0
         if epoch != 0:
           ave = total_time / epoch
-          remaining = (args.max_epoches - epoch) / ave
+          remaining = (args.max_epoches - epoch) * ave
         else: remaining = 0.0
-        remaining = int(remaining / 1000)
+
         days = int(remaining / 86400)
         remaining %= 86400
 
@@ -263,13 +333,14 @@ def train(dbname, args):
         sec = remaining % 60
         logger.info('%d. loss: %f | training : %f | validation: %f' %
           (epoch, loss, train_accuracy, valid_accuarcy))
-        logger.info('time remaining: %d days %d:%d:%d' %
-          (days, hours, minutes, sec))
+        logger.info('average: %f, time remaining: %d days %d:%d:%d' %
+          (ave, days, hours, minutes, sec))
 
       start = time.time()
       sess.run(recognizer.train_ops, feed_dict={
         recognizer.inputs: data_batch,
         recognizer.labels: label_batch,
+        recognizer.keep_prob: args.keep_prob,
       })
       passed = time.time() - start
       total_time += passed
@@ -282,8 +353,12 @@ def train(dbname, args):
             recognizer.labels: label_batch,
             recognizer.validation_inputs: validation_data[o:o+batch_size, :],
             recognizer.validation_labels: validation_labels[o:o+batch_size, :],
+            recognizer.keep_prob: 1.0,
           })
         summary_writer.add_summary(summary, global_step=epoch)
+
+      if epoch % args.decay_epoch == 0 and epoch != 0:
+        sess.run(recognizer.decay_lr)
 
 
 def checkpoint_valid(checkpoint):
@@ -346,6 +421,10 @@ def main():
     type=int, help='batch size to train model')
   parser.add_argument('--saving', dest='saving', default=False,
     type=bool, help='rather to save model or not')
+  parser.add_argument('--keep-prob', dest='keep_prob', default=0.8,
+    type=float, help='keep probability for dropout')
+  parser.add_argument('--decay-epoch', dest='decay_epoch', default=10000,
+    type=int, help='epoches to decay learning rate')
 
   parser.add_argument('--checkpoint', dest='checkpoint',
     type=str, help='checkpoint to load for recognition')
