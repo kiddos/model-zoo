@@ -3,6 +3,7 @@ import numpy as np
 import logging
 import os
 import time
+import sys
 from argparse import ArgumentParser
 
 from plant_loader import PlantLoader
@@ -14,7 +15,8 @@ logger.setLevel(logging.INFO)
 
 
 class PlantRecognizer(object):
-  def __init__(self, learning_rate, input_width, input_height, output_size):
+  def __init__(self, inference,
+      learning_rate, input_width, input_height, output_size):
     self.learning_rate = tf.Variable(learning_rate, trainable=False,
       name='learning_rate')
     self.decay_lr = tf.assign(self.learning_rate, self.learning_rate * 0.9)
@@ -23,11 +25,17 @@ class PlantRecognizer(object):
     self.input_height = input_height
     self.output_size = output_size
 
+    if hasattr(self, inference):
+      inference_func = getattr(self, inference)
+      self.inference = inference
+    else:
+      logger.error('no such inference function!!')
+      sys.exit(1)
+
     self._setup_inputs()
 
-    inference = self._inference_v2
     with tf.variable_scope('inference'):
-      logits, self.outputs = inference(self.inputs)
+      logits, self.outputs = inference_func(self.inputs)
 
     with tf.name_scope('loss'):
       self.loss = tf.reduce_mean(
@@ -42,7 +50,7 @@ class PlantRecognizer(object):
         global_step=self.global_step)
 
     with tf.variable_scope('inference', reuse=True):
-      _, self.validation_outputs = inference(self.validation_inputs)
+      _, self.validation_outputs = inference_func(self.validation_inputs)
 
     with tf.name_scope('evalutation'):
       self.validation_accuracy = self.evaluate(self.validation_outputs,
@@ -80,79 +88,7 @@ class PlantRecognizer(object):
       tf.summary.image(name='input', tensor=self.inputs)
       tf.summary.image(name='validation_input', tensor=self.validation_inputs)
 
-  def _inference(self, inputs):
-    stddev = 0.05
-    with tf.name_scope('conv1'):
-      conv = tf.contrib.layers.conv2d(inputs, 32, stride=1, kernel_size=3,
-        weights_initializer=tf.random_normal_initializer(stddev=0.0006))
-
-    with tf.name_scope('conv2'):
-      conv = tf.contrib.layers.conv2d(conv, 32, stride=1, kernel_size=3,
-        weights_initializer=tf.random_normal_initializer(stddev=stddev))
-
-    with tf.name_scope('conv3'):
-      conv = tf.contrib.layers.conv2d(conv, 32, stride=1, kernel_size=3,
-        weights_initializer=tf.random_normal_initializer(stddev=stddev))
-
-    with tf.name_scope('pool3'):
-      pool = tf.contrib.layers.max_pool2d(conv, 2)
-
-    with tf.name_scope('conv4'):
-      conv = tf.contrib.layers.conv2d(pool, 64, stride=1, kernel_size=3,
-        weights_initializer=tf.random_normal_initializer(stddev=stddev))
-
-    with tf.name_scope('conv5'):
-      conv = tf.contrib.layers.conv2d(conv, 64, stride=1, kernel_size=3,
-        weights_initializer=tf.random_normal_initializer(stddev=stddev))
-
-    with tf.name_scope('conv6'):
-      conv = tf.contrib.layers.conv2d(conv, 64, stride=1, kernel_size=3,
-        weights_initializer=tf.random_normal_initializer(stddev=stddev))
-
-    with tf.name_scope('pool6'):
-      pool = tf.contrib.layers.max_pool2d(conv, kernel_size=2)
-
-    with tf.name_scope('conv7'):
-      conv = tf.contrib.layers.conv2d(pool, 128, stride=1, kernel_size=3,
-        weights_initializer=tf.random_normal_initializer(stddev=stddev))
-
-    with tf.name_scope('conv8'):
-      conv = tf.contrib.layers.conv2d(conv, 128, stride=1, kernel_size=3,
-        weights_initializer=tf.random_normal_initializer(stddev=stddev))
-
-    with tf.name_scope('conv9'):
-      conv = tf.contrib.layers.conv2d(conv, 128, stride=1, kernel_size=3,
-        weights_initializer=tf.random_normal_initializer(stddev=stddev))
-
-    with tf.name_scope('pool9'):
-      pool = tf.contrib.layers.max_pool2d(conv, kernel_size=2)
-
-    with tf.name_scope('conv10'):
-      conv = tf.contrib.layers.conv2d(pool, 256, stride=1, kernel_size=3,
-        weights_initializer=tf.random_normal_initializer(stddev=stddev))
-
-    with tf.name_scope('conv11'):
-      conv = tf.contrib.layers.conv2d(conv, 256, stride=1, kernel_size=3,
-        weights_initializer=tf.random_normal_initializer(stddev=stddev))
-
-    with tf.name_scope('conv12'):
-      conv = tf.contrib.layers.conv2d(conv, 256, stride=1, kernel_size=3,
-        weights_initializer=tf.random_normal_initializer(stddev=stddev))
-
-    with tf.name_scope('fully_connected'):
-      connect_shape = conv.get_shape().as_list()
-      connect_size = connect_shape[1] * connect_shape[2] * connect_shape[3]
-      fc = tf.contrib.layers.fully_connected(
-        tf.reshape(conv, [-1, connect_size]), 4096,
-        weights_initializer=tf.random_normal_initializer(stddev=0.02))
-
-    with tf.name_scope('output'):
-      logits = tf.contrib.layers.fully_connected(fc, self.output_size,
-        activation_fn=None)
-      outputs = tf.nn.softmax(logits)
-    return logits, outputs
-
-  def _inference_v0(self, inputs):
+  def inference_v0(self, inputs):
     with tf.name_scope('conv1'):
       conv = tf.contrib.layers.conv2d(inputs, 32, stride=1, kernel_size=5,
         weights_initializer=tf.random_normal_initializer(stddev=0.0006))
@@ -187,7 +123,98 @@ class PlantRecognizer(object):
       outputs = tf.nn.softmax(logits)
     return logits, outputs
 
-  def _inference_v2(self, inputs):
+  def inference_v1(self, inputs):
+    stddev = 0.05
+    with tf.name_scope('conv1'):
+      conv = tf.contrib.layers.conv2d(inputs, 32, stride=1, kernel_size=3,
+        weights_initializer=tf.random_normal_initializer(stddev=0.0006))
+
+    with tf.name_scope('pool1'):
+      pool = tf.contrib.layers.max_pool2d(conv, 2)
+
+    with tf.name_scope('conv2'):
+      conv = tf.contrib.layers.conv2d(pool, 64, stride=1, kernel_size=3,
+        weights_initializer=tf.random_normal_initializer(stddev=stddev))
+
+    with tf.name_scope('pool2'):
+      pool = tf.contrib.layers.max_pool2d(conv, kernel_size=2)
+
+    with tf.name_scope('conv3'):
+      conv = tf.contrib.layers.conv2d(pool, 128, stride=1, kernel_size=3,
+        weights_initializer=tf.random_normal_initializer(stddev=stddev))
+
+    with tf.name_scope('pool3'):
+      pool = tf.contrib.layers.max_pool2d(conv, kernel_size=2)
+
+    with tf.name_scope('conv4'):
+      conv = tf.contrib.layers.conv2d(conv, 256, stride=1, kernel_size=3,
+        weights_initializer=tf.random_normal_initializer(stddev=stddev))
+
+    with tf.name_scope('drop4'):
+      drop = tf.nn.dropout(conv, keep_prob=self.keep_prob)
+
+    with tf.name_scope('fully_connected'):
+      connect_shape = drop.get_shape().as_list()
+      connect_size = connect_shape[1] * connect_shape[2] * connect_shape[3]
+      stddev = np.sqrt(2.0 / connect_size)
+      fc = tf.contrib.layers.fully_connected(
+        tf.reshape(drop, [-1, connect_size]), 4096,
+        weights_initializer=tf.random_normal_initializer(stddev=stddev))
+      connect_size = 4094
+
+    with tf.name_scope('output'):
+      stddev = np.sqrt(2.0 / connect_size)
+      logits = tf.contrib.layers.fully_connected(fc, self.output_size,
+        activation_fn=None,
+        weights_initializer=tf.random_normal_initializer(stddev=stddev))
+      outputs = tf.nn.softmax(logits)
+    return logits, outputs
+
+  def inference_v2(self, inputs):
+    stddev = 0.05
+    ksize = 3
+    with tf.name_scope('conv1'):
+      conv = tf.contrib.layers.conv2d(inputs, 4, stride=1, kernel_size=ksize,
+        weights_initializer=tf.random_normal_initializer(stddev=0.0006))
+
+    with tf.name_scope('pool1'):
+      pool = tf.contrib.layers.max_pool2d(conv, 2)
+
+    with tf.name_scope('conv2'):
+      conv = tf.contrib.layers.conv2d(pool, 8, stride=1, kernel_size=ksize,
+        weights_initializer=tf.random_normal_initializer(stddev=stddev))
+
+    with tf.name_scope('pool2'):
+      pool = tf.contrib.layers.max_pool2d(conv, kernel_size=2)
+
+    with tf.name_scope('conv3'):
+      conv = tf.contrib.layers.conv2d(pool, 16, stride=1, kernel_size=ksize,
+        weights_initializer=tf.random_normal_initializer(stddev=stddev))
+
+    with tf.name_scope('pool3'):
+      pool = tf.contrib.layers.max_pool2d(conv, kernel_size=2)
+
+    with tf.name_scope('drop3'):
+      drop = tf.nn.dropout(pool, keep_prob=self.keep_prob)
+
+    with tf.name_scope('fully_connected'):
+      connect_shape = drop.get_shape().as_list()
+      connect_size = connect_shape[1] * connect_shape[2] * connect_shape[3]
+      stddev = np.sqrt(2.0 / connect_size)
+      fc_size = 2048
+      fc = tf.contrib.layers.fully_connected(
+        tf.reshape(drop, [-1, connect_size]), fc_size,
+        weights_initializer=tf.random_normal_initializer(stddev=stddev))
+
+    with tf.name_scope('output'):
+      stddev = np.sqrt(2.0 / fc_size)
+      logits = tf.contrib.layers.fully_connected(fc, self.output_size,
+        activation_fn=None,
+        weight_initializer=tf.random_normal_initializer(stddev=stddev))
+      outputs = tf.nn.softmax(logits)
+    return logits, outputs
+
+  def inference_v3(self, inputs):
     stddev = 0.05
     ksize = 3
     with tf.name_scope('conv1'):
@@ -195,80 +222,71 @@ class PlantRecognizer(object):
         weights_initializer=tf.random_normal_initializer(stddev=0.0006))
 
     with tf.name_scope('conv2'):
-      conv = tf.contrib.layers.conv2d(inputs, 4, stride=1, kernel_size=ksize,
-        weights_initializer=tf.random_normal_initializer(stddev=stddev))
+      conv = tf.contrib.layers.conv2d(conv, 4, stride=1, kernel_size=ksize,
+        weights_initializer=tf.random_normal_initializer(stddev=0.0006))
 
-    with tf.name_scope('conv3'):
-      conv = tf.contrib.layers.conv2d(inputs, 4, stride=1, kernel_size=ksize,
-        weights_initializer=tf.random_normal_initializer(stddev=stddev))
-
-    with tf.name_scope('pool3'):
+    with tf.name_scope('pool2'):
       pool = tf.contrib.layers.max_pool2d(conv, 2)
 
-    with tf.name_scope('conv4'):
+    with tf.name_scope('conv3'):
       conv = tf.contrib.layers.conv2d(pool, 8, stride=1, kernel_size=ksize,
         weights_initializer=tf.random_normal_initializer(stddev=stddev))
 
+    with tf.name_scope('conv4'):
+      conv = tf.contrib.layers.conv2d(conv, 8, stride=1, kernel_size=ksize,
+        weights_initializer=tf.random_normal_initializer(stddev=stddev))
+
+    with tf.name_scope('pool4'):
+      pool = tf.contrib.layers.max_pool2d(conv, kernel_size=2)
+
     with tf.name_scope('conv5'):
-      conv = tf.contrib.layers.conv2d(pool, 8, stride=1, kernel_size=ksize,
+      conv = tf.contrib.layers.conv2d(pool, 16, stride=1, kernel_size=ksize,
         weights_initializer=tf.random_normal_initializer(stddev=stddev))
 
     with tf.name_scope('conv6'):
-      conv = tf.contrib.layers.conv2d(pool, 8, stride=1, kernel_size=ksize,
+      conv = tf.contrib.layers.conv2d(conv, 16, stride=1, kernel_size=ksize,
         weights_initializer=tf.random_normal_initializer(stddev=stddev))
 
     with tf.name_scope('pool6'):
       pool = tf.contrib.layers.max_pool2d(conv, kernel_size=2)
 
-    with tf.name_scope('conv7'):
-      conv = tf.contrib.layers.conv2d(pool, 16, stride=1, kernel_size=ksize,
-        weights_initializer=tf.random_normal_initializer(stddev=stddev))
-
-    with tf.name_scope('conv8'):
-      conv = tf.contrib.layers.conv2d(pool, 16, stride=1, kernel_size=ksize,
-        weights_initializer=tf.random_normal_initializer(stddev=stddev))
-
-    with tf.name_scope('conv9'):
-      conv = tf.contrib.layers.conv2d(pool, 16, stride=1, kernel_size=ksize,
-        weights_initializer=tf.random_normal_initializer(stddev=stddev))
-
-    with tf.name_scope('pool9'):
-      pool = tf.contrib.layers.max_pool2d(conv, kernel_size=2)
-
-    with tf.name_scope('drop1'):
+    with tf.name_scope('drop6'):
       drop = tf.nn.dropout(pool, keep_prob=self.keep_prob)
 
     with tf.name_scope('fully_connected'):
       connect_shape = drop.get_shape().as_list()
       connect_size = connect_shape[1] * connect_shape[2] * connect_shape[3]
+      fc_size = 2048
       stddev = np.sqrt(2.0 / connect_size)
       fc = tf.contrib.layers.fully_connected(
-        tf.reshape(drop, [-1, connect_size]), 2048,
+        tf.reshape(drop, [-1, connect_size]), fc_size,
         weights_initializer=tf.random_normal_initializer(stddev=stddev))
 
     with tf.name_scope('output'):
+      stddev = np.sqrt(2.0 / fc_size)
       logits = tf.contrib.layers.fully_connected(fc, self.output_size,
-        activation_fn=None)
+        activation_fn=None,
+        weights_initializer=tf.random_normal_initializer(stddev=stddev))
       outputs = tf.nn.softmax(logits)
     return logits, outputs
 
+  def prepare_folder(self):
+    index = 0
+    folder = 'plant-recognizer-%s_%d' % (self.inference, index)
+    while os.path.isdir(folder):
+      index += 1
+      folder = 'plant-recognizer-%s_%d' % (self.inference, index)
+    os.mkdir(folder)
+    return folder
 
-def prepare_folder():
-  index = 0
-  folder = 'plant-recognizer_%d' % index
-  while os.path.isdir(folder):
-    index += 1
-    folder = 'plant-recognizer_%d' % index
-  os.mkdir(folder)
-  return folder
 
 
 def train(dbname, args):
   loader = PlantLoader(dbname)
   loader.load_data()
 
-  recognizer = PlantRecognizer(
-    args.learning_rate, loader.get_width(), loader.get_height(),
+  recognizer = PlantRecognizer(args.inference, args.learning_rate,
+    loader.get_width(), loader.get_height(),
     loader.get_output_size())
 
   if args.load_all:
@@ -285,7 +303,7 @@ def train(dbname, args):
 
   if args.saving:
     saver = tf.train.Saver()
-    folder = prepare_folder()
+    folder = recognize.prepare_folder()
     checkpoint = os.path.join(folder, 'plant-recognizer')
 
     summary_writer = tf.summary.FileWriter(os.path.join(folder, 'summary'),
@@ -370,7 +388,8 @@ def recognize(dbname, args):
   loader = PlantLoader(dbname)
   loader.load_data()
 
-  recognizer = PlantRecognizer(0, loader.get_width(), loader.get_height(),
+  recognizer = PlantRecognizer(args.inference, 0,
+    loader.get_width(), loader.get_height(),
     loader.get_output_size())
 
   if hasattr(args, 'checkpoint') and checkpoint_valid(args.checkpoint):
@@ -429,6 +448,8 @@ def main():
   parser.add_argument('--checkpoint', dest='checkpoint',
     type=str, help='checkpoint to load for recognition')
   parser.add_argument('--output-file', dest='output_file', default='output.csv')
+  parser.add_argument('--inference', dest='inference', default='inference_v2',
+    type=str, help='inference function name')
   args = parser.parse_args()
 
   if args.mode == 'train':
