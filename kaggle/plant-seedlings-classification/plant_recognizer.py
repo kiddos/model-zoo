@@ -322,6 +322,68 @@ class PlantRecognizer(object):
       outputs = tf.nn.softmax(logits)
     return logits, outputs
 
+  def inference_v5(self, inputs):
+    stddev = 0.05
+    ksize = 3
+    with tf.name_scope('conv1'):
+      conv = tf.contrib.layers.conv2d(inputs, 32, stride=1, kernel_size=ksize,
+        weights_initializer=tf.random_normal_initializer(stddev=0.0006))
+
+    with tf.name_scope('drop1'):
+      drop = tf.nn.dropout(conv, keep_prob=self.keep_prob)
+
+    with tf.name_scope('conv2'):
+      conv = tf.contrib.layers.conv2d(drop, 32, stride=1, kernel_size=ksize,
+        weights_initializer=tf.random_normal_initializer(stddev=stddev))
+
+    with tf.name_scope('pool2'):
+      pool = tf.contrib.layers.max_pool2d(conv, 2)
+
+    with tf.name_scope('conv3'):
+      conv = tf.contrib.layers.conv2d(pool, 64, stride=1, kernel_size=ksize,
+        weights_initializer=tf.random_normal_initializer(stddev=stddev))
+
+    with tf.name_scope('drop3'):
+      drop = tf.nn.dropout(conv, keep_prob=self.keep_prob)
+
+    with tf.name_scope('conv4'):
+      conv = tf.contrib.layers.conv2d(drop, 64, stride=1, kernel_size=ksize,
+        weights_initializer=tf.random_normal_initializer(stddev=stddev))
+
+    with tf.name_scope('pool4'):
+      pool = tf.contrib.layers.max_pool2d(conv, 2)
+
+    with tf.name_scope('conv5'):
+      conv = tf.contrib.layers.conv2d(pool, 128, stride=1, kernel_size=ksize,
+        weights_initializer=tf.random_normal_initializer(stddev=stddev))
+
+    with tf.name_scope('drop5'):
+      drop = tf.nn.dropout(conv, keep_prob=self.keep_prob)
+
+    with tf.name_scope('conv6'):
+      conv = tf.contrib.layers.conv2d(drop, 128, stride=1, kernel_size=ksize,
+        weights_initializer=tf.random_normal_initializer(stddev=stddev))
+
+    with tf.name_scope('pool6'):
+      pool = tf.contrib.layers.max_pool2d(conv, 2)
+
+    with tf.name_scope('fully_connected'):
+      connect_shape = pool.get_shape().as_list()
+      connect_size = connect_shape[1] * connect_shape[2] * connect_shape[3]
+      stddev = np.sqrt(2.0 / connect_size)
+      fc_size = 512
+      fc = tf.contrib.layers.fully_connected(
+        tf.reshape(pool, [-1, connect_size]), fc_size,
+        weights_initializer=tf.random_normal_initializer(stddev=stddev))
+
+    with tf.name_scope('output'):
+      stddev = np.sqrt(2.0 / fc_size)
+      logits = tf.contrib.layers.fully_connected(fc, self.output_size,
+        activation_fn=None,
+        weights_initializer=tf.random_normal_initializer(stddev=stddev))
+      outputs = tf.nn.softmax(logits)
+    return logits, outputs
+
   def prepare_folder(self):
     index = 0
     folder = 'plant-recognizer-%s_%d' % (self.inference, index)
