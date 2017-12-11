@@ -1,3 +1,5 @@
+from __future__ import print_function
+
 import tensorflow as tf
 import numpy as np
 import logging
@@ -194,14 +196,14 @@ class YOLOFace(object):
     ksize = 3
     stddev = 0.016
     with tf.name_scope('conv1'):
-      conv = tf.contrib.layers.conv2d(inputs, 64, stride=1, kernel_size=ksize,
+      conv = tf.contrib.layers.conv2d(inputs, 32, stride=1, kernel_size=ksize,
         weights_initializer=tf.random_normal_initializer(stddev=0.0006))
 
     with tf.name_scope('pool1'):
       pool = tf.contrib.layers.max_pool2d(conv, 2)
 
     with tf.name_scope('conv2'):
-      conv = tf.contrib.layers.conv2d(pool, 128, stride=1, kernel_size=ksize,
+      conv = tf.contrib.layers.conv2d(pool, 64, stride=1, kernel_size=ksize,
         weights_initializer=tf.random_normal_initializer(stddev=stddev))
 
     with tf.name_scope('pool2'):
@@ -228,12 +230,8 @@ class YOLOFace(object):
     with tf.name_scope('drop5'):
       drop = tf.nn.dropout(conv, keep_prob=self.keep_prob)
 
-    with tf.name_scope('conv6'):
-      conv = tf.contrib.layers.conv2d(drop, 1024, stride=1, kernel_size=ksize,
-        weights_initializer=tf.random_normal_initializer(stddev=stddev))
-
     with tf.name_scope('output'):
-      logits = tf.contrib.layers.conv2d(conv, 5, stride=1, kernel_size=ksize,
+      logits = tf.contrib.layers.conv2d(drop, 5, stride=1, kernel_size=ksize,
         activation_fn=None,
         weights_initializer=tf.random_normal_initializer(stddev=stddev))
     return logits
@@ -345,26 +343,70 @@ def train(args):
         sess.run(yolo.decay_learning_rate)
 
 
+def fit(original, size):
+  w, h = original.size
+  output_image = Image.new('RGB', (size, size))
+  if w >= h:
+    scale = float(size) / w
+    oh = int(h * scale)
+    output_image.paste(original.resize((size, oh)),
+      (0, (size - oh) / 2))
+  else:
+    scale = float(size) / h
+    ow = int(w * scale)
+    output_image.paste(original.resize((ow, size)),
+      ((size - ow) / 2, 0))
+  return np.array(output_image, np.uint8)
+
 def inference(args):
   loader = WIDERLoader(args.dbname)
 
-  with tf.device('/:cpu0'):
+  with tf.device('/:gpu0'):
     yolo = YOLOFace(loader.get_input_size(), loader.get_output_size(),
       args.inference)
 
-  test_image = np.array(Image.open('test_image.jpg'), dtype=np.float32)
+  #  test_image = np.array(Image.open('test_image.jpg'), dtype=np.float32)
 
-  with tf.Session() as sess:
+  config = tf.ConfigProto(log_device_placement=True)
+  #  config.gpu_options.per_process_gpu_memory_fraction=0.3
+  #  config.operation_timeout_in_ms=50000
+  with tf.Session(config=config) as sess:
     sess.run(tf.global_variables_initializer())
-    count = 1000
-    total = 0
-    for i in range(count):
-      start = time.time()
-      result = yolo.predict(sess, test_image)
-      passed = time.time() - start
-      total += passed
-    print(result)
-    logger.info('time used for 1 frame: %f' % (total / count))
+
+    try:
+      import cv2
+      camera = cv2.VideoCapture(0)
+
+      count = 0
+      total_time = 0
+      while True:
+        _, img = camera.read(0)
+        img = fit(Image.fromarray(img), yolo.input_size)
+
+        start = time.time()
+        yolo.predict(sess, img)
+        passed = time.time() - start
+        total_time += passed
+        count += 1
+
+        cv2.imshow('Image', img)
+        print('\raverage: %f' % (total_time / count), end='')
+
+        key = cv2.waitKey(10)
+        if key == ord('q'):
+          break
+
+    except Exception as e:
+      logger.error(e)
+    #  count = 1000
+    #  total = 0
+    #  for i in range(count):
+    #    start = time.time()
+    #    result = yolo.predict(sess, test_image)
+    #    passed = time.time() - start
+    #    total += passed
+    #  print(result)
+    #  logger.info('time used for 1 frame: %f' % (total / count))
 
 
 def main():
