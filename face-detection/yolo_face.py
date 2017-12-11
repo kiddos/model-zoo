@@ -190,6 +190,54 @@ class YOLOFace(object):
         [-1, self.output_size, self.output_size, self.output_channel])
     return logits
 
+  def inference_v1(self, inputs):
+    ksize = 3
+    stddev = 0.016
+    with tf.name_scope('conv1'):
+      conv = tf.contrib.layers.conv2d(inputs, 64, stride=1, kernel_size=ksize,
+        weights_initializer=tf.random_normal_initializer(stddev=0.0006))
+
+    with tf.name_scope('pool1'):
+      pool = tf.contrib.layers.max_pool2d(conv, 2)
+
+    with tf.name_scope('conv2'):
+      conv = tf.contrib.layers.conv2d(pool, 128, stride=1, kernel_size=ksize,
+        weights_initializer=tf.random_normal_initializer(stddev=stddev))
+
+    with tf.name_scope('pool2'):
+      pool = tf.contrib.layers.max_pool2d(conv, 2)
+
+    with tf.name_scope('conv3'):
+      conv = tf.contrib.layers.conv2d(pool, 256, stride=1, kernel_size=ksize,
+        weights_initializer=tf.random_normal_initializer(stddev=stddev))
+
+    with tf.name_scope('pool3'):
+      pool = tf.contrib.layers.max_pool2d(conv, 2)
+
+    with tf.name_scope('conv4'):
+      conv = tf.contrib.layers.conv2d(pool, 512, stride=1, kernel_size=ksize,
+        weights_initializer=tf.random_normal_initializer(stddev=stddev))
+
+    with tf.name_scope('pool4'):
+      pool = tf.contrib.layers.max_pool2d(conv, 2)
+
+    with tf.name_scope('conv5'):
+      conv = tf.contrib.layers.conv2d(pool, 1024, stride=1, kernel_size=ksize,
+        weights_initializer=tf.random_normal_initializer(stddev=stddev))
+
+    with tf.name_scope('drop5'):
+      drop = tf.nn.dropout(conv, keep_prob=self.keep_prob)
+
+    with tf.name_scope('conv6'):
+      conv = tf.contrib.layers.conv2d(drop, 1024, stride=1, kernel_size=ksize,
+        weights_initializer=tf.random_normal_initializer(stddev=stddev))
+
+    with tf.name_scope('output'):
+      logits = tf.contrib.layers.conv2d(conv, 5, stride=1, kernel_size=ksize,
+        activation_fn=None,
+        weights_initializer=tf.random_normal_initializer(stddev=stddev))
+    return logits
+
   def predict_batch(self, sess, input_images):
     return sess.run(self.output, feed_dict={
       self.input_images: input_images,
