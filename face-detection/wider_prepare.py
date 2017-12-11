@@ -112,7 +112,9 @@ class WIDERData(object):
     self.connection = sqlite3.connect(args.dbname)
     self.cursor = self.connection.cursor()
 
-  def prepare(self):
+    self._setup_tables()
+
+  def _setup_tables(self):
     logger.info('creating meta table...')
     self.cursor.execute("""DROP TABLE IF EXISTS meta;""")
     self.cursor.execute("""CREATE TABLE meta(
@@ -143,6 +145,7 @@ class WIDERData(object):
 
     self.connection.commit()
 
+  def prepare(self):
     logger.info('loading training data...')
     training_labels = load_labels(self.training_label)
     self.load_data_with_label(self.training_image_folder,
@@ -266,7 +269,8 @@ def main():
 
   #  save(args)
   data = WIDERData(args)
-  data.prepare()
+  if os.path.isdir(args.training_folder):
+    data.prepare()
 
 
 if __name__ == '__main__':
