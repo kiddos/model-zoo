@@ -99,16 +99,17 @@ class YOLOFace(object):
         tf.split(self.valid_labels, [1, 2, 2], axis=3)
       valid_ind, valid_coord, valid_s = tf.split(
         validation_logits, [1, 2, 2], axis=3)
+      tf.summary.image('valid_indicator_prediction', valid_ind)
 
     with tf.name_scope('evaluation'):
       self.indicator_accuracy, self.intersect_area = \
-        self.evaluate(ind, indicator, coord, coordinate, s, size, num_obj)
+        self.evaluate(ind, indicator, coord, coordinate, s, size)
       tf.summary.scalar('indicator_accuracy', self.indicator_accuracy)
       tf.summary.scalar('intersect_area_ratio', self.intersect_area)
 
       self.valid_indicator_accuarcy, self.valid_intersect_area = \
         self.evaluate(valid_ind, valid_indicator,
-          valid_coord, valid_coordinate, valid_s, valid_size, num_obj)
+          valid_coord, valid_coordinate, valid_s, valid_size)
       tf.summary.scalar('valid_indicator_accuracy',
         self.valid_indicator_accuarcy)
       tf.summary.scalar('valid_intersect_area_ratio',
@@ -129,7 +130,7 @@ class YOLOFace(object):
       shape=[None, self.input_size, self.input_size, 3], name='valid_images')
     self.valid_labels = tf.placeholder(dtype=tf.float32, name='valid_labels',
       shape=[None, self.output_size, self.output_size, self.output_channel])
-    tf.summary.image('validation images', self.input_images)
+    tf.summary.image('validation_images', self.valid_images)
 
     self.keep_prob = tf.placeholder(dtype=tf.float32,
       shape=[], name='keep_prob')
@@ -301,8 +302,8 @@ class YOLOFace(object):
     os.mkdir(folder)
     return folder
 
-  def evaluate(self, ind, ind_label, coord, coordinate,
-      s, size, num_obj):
+  def evaluate(self, ind, ind_label, coord, coordinate, s, size):
+    num_obj = tf.reduce_sum(ind_label)
     certain = tf.cast(tf.greater_equal(ind, 0.66), tf.float32)
     indicator_accuracy = tf.reduce_sum(
       ind_label * tf.cast(tf.equal(certain, ind_label), tf.float32)) / num_obj
@@ -343,6 +344,9 @@ def train(args):
   valid_data, valid_label = loader.get_validation_data()
   valid_index = 0
   training_data_size = len(training_data)
+  valid_data_size = len(valid_data)
+  logger.info('training data: %d, validation data: %d',
+    training_data_size, valid_data_size)
 
   with tf.Session() as sess:
     sess.run(tf.global_variables_initializer())
@@ -377,6 +381,9 @@ def train(args):
         logger.info('train: %f, %f, valid: %f, %f',
           losses[5], losses[6], losses[7], losses[8])
 
+        valid_index = (valid_index + args.batch_size) % (valid_data_size -
+          args.batch_size)
+
         ave = total_time / (epoch + 1)
         time_remaining = (args.max_epoches - epoch) * ave
         days = int(time_remaining / 86400)
@@ -394,9 +401,16 @@ def train(args):
 
       if epoch % args.summary_epoches == 0 and epoch != 0 and \
           args.saving == 'True':
+        offset = valid_index
+        to = valid_index + args.batch_size
+        valid_data_batch = valid_data[offset:to, :]
+        valid_label_batch = valid_label[offset:to, :]
+
         summary = sess.run(yolo.summary, feed_dict={
           yolo.input_images: training_data_batch,
           yolo.label_grids: training_label_batch,
+          yolo.valid_images: valid_data_batch,
+          yolo.valid_labels: valid_label_batch,
           yolo.keep_prob: 1.0,
         })
         summary_writer.add_summary(summary, global_step=epoch)
