@@ -15,8 +15,8 @@ logger.setLevel(logging.INFO)
 
 
 class Critic(object):
-  HIDDEN_SIZE = 256
-  TAU = 3e-3
+  HIDDEN_SIZE = 128
+  TAU = 1e-1
   LEARNING_RATE = 1e-3
   DISCOUNT_FACTOR = 0.99
 
@@ -74,12 +74,12 @@ class Critic(object):
 
     with tf.name_scope('hidden1'):
       #  h = tf.concat([s, a], axis=1)
-      h = tf.nn.relu(a + s)
+      h = tf.nn.tanh(a + s)
 
     with tf.name_scope('hidden2'):
       stddev = np.sqrt(2.0 / self.HIDDEN_SIZE)
       h = tf.contrib.layers.fully_connected(h, self.HIDDEN_SIZE,
-        trainable=trainable,
+        trainable=trainable, activation_fn=tf.nn.tanh,
         weights_initializer=tf.random_normal_initializer(stddev=stddev))
 
     with tf.name_scope('output'):
@@ -142,9 +142,9 @@ class Critic(object):
 
 
 class Actor(object):
-  HIDDEN_SIZE = 128
+  HIDDEN_SIZE = 512
   TAU = 1e-1
-  LEARNING_RATE = 1e-5
+  LEARNING_RATE = 1e-3
 
   def __init__(self):
     self._setup_inputs()
