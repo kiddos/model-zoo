@@ -1,7 +1,7 @@
 from __future__ import print_function
 
 import os
-os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
+#  os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
 import tensorflow as tf
 import numpy as np
 import logging
@@ -252,74 +252,96 @@ class YOLOFace(object):
       conv = tf.contrib.layers.conv2d(pool, 16, stride=1, kernel_size=ksize,
         weights_initializer=tf.random_normal_initializer(stddev=stddev))
 
-      conv = tf.contrib.layers.conv2d(pool, 16, stride=1, kernel_size=1,
-        weights_initializer=tf.random_normal_initializer(stddev=stddev))
-
-      conv = tf.contrib.layers.conv2d(pool, 16, stride=1, kernel_size=ksize,
-        weights_initializer=tf.random_normal_initializer(stddev=stddev))
-
     with tf.name_scope('pool2'):
       pool = tf.contrib.layers.max_pool2d(conv, 2)
 
     with tf.name_scope('conv3'):
-      conv = tf.contrib.layers.conv2d(pool, 32, stride=1, kernel_size=ksize,
+      size = 64
+      stddev = np.sqrt(2.0 / (ksize * ksize * size))
+      conv = tf.contrib.layers.conv2d(pool, size, stride=1, kernel_size=ksize,
         weights_initializer=tf.random_normal_initializer(stddev=stddev))
 
-      conv = tf.contrib.layers.conv2d(conv, 32, stride=1, kernel_size=1,
-        weights_initializer=tf.random_normal_initializer(stddev=stddev))
+      conv = tf.contrib.layers.conv2d(conv, size / 2, stride=1, kernel_size=1,
+        weights_initializer=tf.random_normal_initializer(stddev=np.sqrt(
+          4.0 / size)))
 
-      conv = tf.contrib.layers.conv2d(conv, 32, stride=1, kernel_size=ksize,
+      conv = tf.contrib.layers.conv2d(conv, size, stride=1, kernel_size=ksize,
         weights_initializer=tf.random_normal_initializer(stddev=stddev))
 
     with tf.name_scope('pool3'):
       pool = tf.contrib.layers.max_pool2d(conv, 2)
 
     with tf.name_scope('conv4'):
-      conv = tf.contrib.layers.conv2d(pool, 64, stride=1, kernel_size=ksize,
+      size = 128
+      stddev = np.sqrt(2.0 / (ksize * ksize * size))
+      conv = tf.contrib.layers.conv2d(pool, size, stride=1, kernel_size=ksize,
         weights_initializer=tf.random_normal_initializer(stddev=stddev))
 
-      conv = tf.contrib.layers.conv2d(conv, 64, stride=1, kernel_size=1,
+      conv = tf.contrib.layers.conv2d(conv, size / 2, stride=1, kernel_size=1,
+        weights_initializer=tf.random_normal_initializer(stddev=np.sqrt(
+          4.0 / size)))
+
+      conv = tf.contrib.layers.conv2d(conv, size, stride=1, kernel_size=ksize,
         weights_initializer=tf.random_normal_initializer(stddev=stddev))
 
-      conv = tf.contrib.layers.conv2d(conv, 64, stride=1, kernel_size=ksize,
+      conv = tf.contrib.layers.conv2d(conv, size / 2, stride=1, kernel_size=1,
+        weights_initializer=tf.random_normal_initializer(stddev=np.sqrt(
+          4.0 / size)))
+
+      conv = tf.contrib.layers.conv2d(conv, size, stride=1, kernel_size=ksize,
         weights_initializer=tf.random_normal_initializer(stddev=stddev))
 
     with tf.name_scope('pool4'):
       pool = tf.contrib.layers.max_pool2d(conv, 2)
 
     with tf.name_scope('conv5'):
-      conv = tf.contrib.layers.conv2d(pool, 128, stride=1, kernel_size=ksize,
+      size = 256
+      stddev = np.sqrt(2.0 / (ksize * ksize * size))
+      conv = tf.contrib.layers.conv2d(pool, size, stride=1, kernel_size=ksize,
         weights_initializer=tf.random_normal_initializer(stddev=stddev))
 
-      conv = tf.contrib.layers.conv2d(conv, 128, stride=1, kernel_size=1,
+      conv = tf.contrib.layers.conv2d(conv, size / 2, stride=1, kernel_size=1,
+        weights_initializer=tf.random_normal_initializer(stddev=np.sqrt(
+          4.0 / size)))
+
+      conv = tf.contrib.layers.conv2d(conv, size, stride=1, kernel_size=ksize,
         weights_initializer=tf.random_normal_initializer(stddev=stddev))
 
-      conv = tf.contrib.layers.conv2d(conv, 128, stride=1, kernel_size=ksize,
+      conv = tf.contrib.layers.conv2d(conv, size / 2, stride=1, kernel_size=1,
+        weights_initializer=tf.random_normal_initializer(stddev=np.sqrt(
+          4.0 / size)))
+
+      conv = tf.contrib.layers.conv2d(conv, size, stride=1, kernel_size=ksize,
         weights_initializer=tf.random_normal_initializer(stddev=stddev))
 
-      conv = tf.contrib.layers.conv2d(conv, 128, stride=1, kernel_size=1,
-        weights_initializer=tf.random_normal_initializer(stddev=stddev))
+      conv = tf.contrib.layers.conv2d(conv, size / 2, stride=1, kernel_size=1,
+        weights_initializer=tf.random_normal_initializer(stddev=np.sqrt(
+          4.0 / size)))
 
-      conv = tf.contrib.layers.conv2d(conv, 128, stride=1, kernel_size=ksize,
+      conv = tf.contrib.layers.conv2d(conv, size, stride=1, kernel_size=ksize,
         weights_initializer=tf.random_normal_initializer(stddev=stddev))
 
     with tf.name_scope('drop5'):
       drop = tf.nn.dropout(conv, keep_prob=self.keep_prob)
 
     with tf.name_scope('conv6'):
-      conv = tf.contrib.layers.conv2d(drop, 256, stride=1, kernel_size=ksize,
+      size = 256
+      stddev = np.sqrt(2.0 / (ksize * ksize * size))
+      conv = tf.contrib.layers.conv2d(pool, size, stride=1, kernel_size=ksize,
         weights_initializer=tf.random_normal_initializer(stddev=stddev))
 
-      conv = tf.contrib.layers.conv2d(conv, 256, stride=1, kernel_size=1,
+      conv = tf.contrib.layers.conv2d(conv, size / 2, stride=1, kernel_size=1,
+        weights_initializer=tf.random_normal_initializer(stddev=np.sqrt(
+          4.0 / size)))
+
+      conv = tf.contrib.layers.conv2d(conv, size, stride=1, kernel_size=ksize,
         weights_initializer=tf.random_normal_initializer(stddev=stddev))
 
-      conv = tf.contrib.layers.conv2d(conv, 256, stride=1, kernel_size=ksize,
-        weights_initializer=tf.random_normal_initializer(stddev=stddev))
+      conv = tf.contrib.layers.conv2d(conv, size / 2, stride=1, kernel_size=1,
+        weights_initializer=tf.random_normal_initializer(stddev=np.sqrt(
+          4.0 / size)))
 
-      conv = tf.contrib.layers.conv2d(conv, 256, stride=1, kernel_size=1,
-        weights_initializer=tf.random_normal_initializer(stddev=stddev))
-
-      conv = tf.contrib.layers.conv2d(conv, 256, stride=1, kernel_size=ksize,
+      conv = tf.contrib.layers.conv2d(conv, size, stride=1, kernel_size=ksize,
         weights_initializer=tf.random_normal_initializer(stddev=stddev))
 
     with tf.name_scope('drop6'):
