@@ -30,22 +30,29 @@ class WIDERLoader(object):
   def load_data(self):
     self.load_training_data()
 
-  def load_training_data(self):
-    logger.info('loading training data...')
-    self.training_data = []
-    self.training_label = []
+  def _load_data_from_table(self, table):
+    logger.info('loading data from %s...', table)
+    data = []
+    label = []
 
-    self.cursor.execute("""SELECT image, label FROM wider_train;""")
+    self.cursor.execute("""SELECT image, label FROM %s;""" % (table))
     raw_data = self.cursor.fetchall()
     for entry in raw_data:
       input_image = np.frombuffer(entry[0], np.uint8).reshape([
         self.input_size, self.input_size, 3])
       label = np.frombuffer(entry[1], np.float32).reshape([
         self.output_size, self.output_size, 5])
-      self.training_data.append(input_image)
-      self.training_label.append(label)
-    self.training_data = np.array(self.training_data)
-    self.training_label = np.array(self.training_label)
+      data.append(input_image)
+      label.append(label)
+    return np.array(data), np.array(label)
+
+  def load_training_data(self):
+    self.training_data, self.training_label = \
+      self._load_data_from_table('wider_train')
+
+  def load_validation_data(self):
+    self.validation_data, self.validation_label = \
+      self._load_data_from_table('wider_valid')
 
   def get_input_size(self):
     return self.input_size
@@ -56,6 +63,10 @@ class WIDERLoader(object):
   def get_training_data(self):
     index = np.random.permutation(np.arange(len(self.training_data)))
     return self.training_data[index, :], self.training_label[index, :]
+
+  def get_validation_data(self):
+    index = np.random.permutation(np.arange(len(self.validation_data)))
+    return self.validation_data[index, :], self.validation_label[index, :]
 
 
 def main():
