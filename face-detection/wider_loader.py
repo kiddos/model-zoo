@@ -40,10 +40,10 @@ class WIDERLoader(object):
     for entry in raw_data:
       input_image = np.frombuffer(entry[0], np.uint8).reshape([
         self.input_size, self.input_size, 3])
-      label = np.frombuffer(entry[1], np.float32).reshape([
+      l = np.frombuffer(entry[1], np.float32).reshape([
         self.output_size, self.output_size, 5])
       data.append(input_image)
-      label.append(label)
+      label.append(l)
     return np.array(data), np.array(label)
 
   def load_training_data(self):
