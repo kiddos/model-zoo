@@ -1,10 +1,11 @@
 from __future__ import print_function
 
+import os
+os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
 import tensorflow as tf
 import numpy as np
 import logging
 import sys
-import os
 import time
 from PIL import Image, ImageDraw
 from argparse import ArgumentParser
@@ -240,38 +241,87 @@ class YOLOFace(object):
     ksize = 3
     stddev = 0.016
     with tf.name_scope('conv1'):
-      conv = tf.contrib.layers.conv2d(inputs, 16, stride=1, kernel_size=ksize,
+      conv = tf.contrib.layers.conv2d(inputs, 8, stride=1, kernel_size=ksize,
         weights_initializer=tf.random_normal_initializer(stddev=0.0006))
 
     with tf.name_scope('pool1'):
       pool = tf.contrib.layers.max_pool2d(conv, 2)
 
     with tf.name_scope('conv2'):
-      conv = tf.contrib.layers.conv2d(pool, 32, stride=1, kernel_size=ksize,
+      conv = tf.contrib.layers.conv2d(pool, 16, stride=1, kernel_size=ksize,
+        weights_initializer=tf.random_normal_initializer(stddev=stddev))
+
+      conv = tf.contrib.layers.conv2d(pool, 16, stride=1, kernel_size=1,
+        weights_initializer=tf.random_normal_initializer(stddev=stddev))
+
+      conv = tf.contrib.layers.conv2d(pool, 16, stride=1, kernel_size=ksize,
         weights_initializer=tf.random_normal_initializer(stddev=stddev))
 
     with tf.name_scope('pool2'):
       pool = tf.contrib.layers.max_pool2d(conv, 2)
 
     with tf.name_scope('conv3'):
-      conv = tf.contrib.layers.conv2d(pool, 64, stride=1, kernel_size=ksize,
+      conv = tf.contrib.layers.conv2d(pool, 32, stride=1, kernel_size=ksize,
+        weights_initializer=tf.random_normal_initializer(stddev=stddev))
+
+      conv = tf.contrib.layers.conv2d(conv, 32, stride=1, kernel_size=1,
+        weights_initializer=tf.random_normal_initializer(stddev=stddev))
+
+      conv = tf.contrib.layers.conv2d(conv, 32, stride=1, kernel_size=ksize,
         weights_initializer=tf.random_normal_initializer(stddev=stddev))
 
     with tf.name_scope('pool3'):
       pool = tf.contrib.layers.max_pool2d(conv, 2)
 
     with tf.name_scope('conv4'):
-      conv = tf.contrib.layers.conv2d(pool, 128, stride=1, kernel_size=ksize,
+      conv = tf.contrib.layers.conv2d(pool, 64, stride=1, kernel_size=ksize,
+        weights_initializer=tf.random_normal_initializer(stddev=stddev))
+
+      conv = tf.contrib.layers.conv2d(conv, 64, stride=1, kernel_size=1,
+        weights_initializer=tf.random_normal_initializer(stddev=stddev))
+
+      conv = tf.contrib.layers.conv2d(conv, 64, stride=1, kernel_size=ksize,
         weights_initializer=tf.random_normal_initializer(stddev=stddev))
 
     with tf.name_scope('pool4'):
       pool = tf.contrib.layers.max_pool2d(conv, 2)
 
     with tf.name_scope('conv5'):
-      conv = tf.contrib.layers.conv2d(pool, 256, stride=1, kernel_size=ksize,
+      conv = tf.contrib.layers.conv2d(pool, 128, stride=1, kernel_size=ksize,
+        weights_initializer=tf.random_normal_initializer(stddev=stddev))
+
+      conv = tf.contrib.layers.conv2d(conv, 128, stride=1, kernel_size=1,
+        weights_initializer=tf.random_normal_initializer(stddev=stddev))
+
+      conv = tf.contrib.layers.conv2d(conv, 128, stride=1, kernel_size=ksize,
+        weights_initializer=tf.random_normal_initializer(stddev=stddev))
+
+      conv = tf.contrib.layers.conv2d(conv, 128, stride=1, kernel_size=1,
+        weights_initializer=tf.random_normal_initializer(stddev=stddev))
+
+      conv = tf.contrib.layers.conv2d(conv, 128, stride=1, kernel_size=ksize,
         weights_initializer=tf.random_normal_initializer(stddev=stddev))
 
     with tf.name_scope('drop5'):
+      drop = tf.nn.dropout(conv, keep_prob=self.keep_prob)
+
+    with tf.name_scope('conv6'):
+      conv = tf.contrib.layers.conv2d(drop, 256, stride=1, kernel_size=ksize,
+        weights_initializer=tf.random_normal_initializer(stddev=stddev))
+
+      conv = tf.contrib.layers.conv2d(conv, 256, stride=1, kernel_size=1,
+        weights_initializer=tf.random_normal_initializer(stddev=stddev))
+
+      conv = tf.contrib.layers.conv2d(conv, 256, stride=1, kernel_size=ksize,
+        weights_initializer=tf.random_normal_initializer(stddev=stddev))
+
+      conv = tf.contrib.layers.conv2d(conv, 256, stride=1, kernel_size=1,
+        weights_initializer=tf.random_normal_initializer(stddev=stddev))
+
+      conv = tf.contrib.layers.conv2d(conv, 256, stride=1, kernel_size=ksize,
+        weights_initializer=tf.random_normal_initializer(stddev=stddev))
+
+    with tf.name_scope('drop6'):
       drop = tf.nn.dropout(conv, keep_prob=self.keep_prob)
 
     with tf.name_scope('output'):
@@ -434,7 +484,7 @@ def fit(original, size):
 def inference(args):
   loader = WIDERLoader(args.dbname)
 
-  with tf.device('/:gpu0'):
+  with tf.device('/:cpu0'):
     yolo = YOLOFace(loader.get_input_size(), loader.get_output_size(),
       args.inference)
 
@@ -459,6 +509,7 @@ def inference(args):
 
         cv2.imshow('Image', img)
         print('\raverage: %f' % (total_time / count), end='')
+        sys.stdout.flush()
 
         key = cv2.waitKey(10)
         if key == ord('q'):
