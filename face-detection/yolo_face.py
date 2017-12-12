@@ -432,7 +432,7 @@ def main():
   parser.add_argument('--batch-size', dest='batch_size', type=int,
     default=32, help='batch size for training')
   parser.add_argument('--max-epoches', dest='max_epoches', type=int,
-    default=200000, help='max epoches to train')
+    default=100000, help='max epoches to train')
   parser.add_argument('--display-epoches', dest='display_epoches', type=int,
     default=10, help='epoches to display training result')
   parser.add_argument('--save-epoches', dest='save_epoches', type=int,
