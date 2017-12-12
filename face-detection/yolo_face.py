@@ -39,11 +39,10 @@ class YOLOFace(object):
       logits = self.inference_func(self.input_images)
       ind, coord, s = tf.split(logits, [1, 2, 2], axis=3)
 
-      ind_output = tf.nn.sigmoid(ind)
       input_size = tf.constant(float(self.input_size))
       coord_output = coord * input_size
       size_output = s * input_size
-      self.output = tf.concat([ind_output, coord_output, size_output], axis=3)
+      self.output = tf.concat([ind, coord_output, size_output], axis=3)
 
     with tf.name_scope('loss'):
       indicator, coordinate, size = tf.split(self.label_grids,
@@ -94,28 +93,29 @@ class YOLOFace(object):
       optimizer = tf.train.GradientDescentOptimizer(self.learning_rate)
       self.train_ops = optimizer.minimize(self.loss)
 
-    with tf.name_scope('summary'):
-      self.summary = tf.summary.merge_all()
+    with tf.variable_scope('yolo', reuse=True):
+      validation_logits = self.inference_func(self.valid_images)
+      valid_indicator, valid_coordinate, valid_size = \
+        tf.split(self.valid_labels, [1, 2, 2], axis=3)
+      valid_ind, valid_coord, valid_s = tf.split(
+        validation_logits, [1, 2, 2], axis=3)
 
     with tf.name_scope('evaluation'):
-      batch_size = tf.gather(tf.shape(indicator), 0)
-      num_grids = tf.cast(batch_size * (self.output_size ** 2), tf.float32)
-      certain = tf.cast(tf.greater_equal(ind_output, 0.5), tf.float32)
-      self.indicator_accuracy = tf.reduce_sum(
-        indicator * tf.cast(tf.equal(certain, indicator), tf.float32)) / num_obj
+      self.indicator_accuracy, self.intersect_area = \
+        self.evaluate(ind, indicator, coord, coordinate, s, size, num_obj)
       tf.summary.scalar('indicator_accuracy', self.indicator_accuracy)
-
-      left_bottom = tf.maximum(coord - s / 2.0, coordinate - size / 2.0)
-      right_top = tf.minimum(coord + s / 2.0, coordinate + size / 2.0)
-      left, bottom = tf.split(left_bottom, [1, 1], axis=3)
-      right, top = tf.split(left_bottom, [1, 1], axis=3)
-      valid_intersection = tf.reduce_all(
-        tf.greater(right_top, left_bottom), axis=3)
-      area = tf.reduce_prod(right_top - left_bottom, axis=3)
-      true_area = tf.maximum(tf.reduce_prod(size, axis=3), 1e-5)
-      self.intersect_area = tf.reduce_sum(
-        tf.cast(valid_intersection, tf.float32) * area / true_area) / num_grids
       tf.summary.scalar('intersect_area_ratio', self.intersect_area)
+
+      self.valid_indicator_accuarcy, self.valid_intersect_area = \
+        self.evaluate(valid_ind, valid_indicator,
+          valid_coord, valid_coordinate, valid_s, valid_size, num_obj)
+      tf.summary.scalar('valid_indicator_accuracy',
+        self.valid_indicator_accuarcy)
+      tf.summary.scalar('valid_intersect_area_ratio',
+        self.valid_intersect_area)
+
+    with tf.name_scope('summary'):
+      self.summary = tf.summary.merge_all()
 
   def _setup_inputs(self):
     self.input_images = tf.placeholder(dtype=tf.float32,
@@ -301,10 +301,29 @@ class YOLOFace(object):
     os.mkdir(folder)
     return folder
 
+  def evaluate(self, ind, ind_label, coord, coordinate,
+      s, size, num_obj):
+    certain = tf.cast(tf.greater_equal(ind, 0.66), tf.float32)
+    indicator_accuracy = tf.reduce_sum(
+      ind_label * tf.cast(tf.equal(certain, ind_label), tf.float32)) / num_obj
+
+    left_bottom = tf.maximum(coord - s / 2.0, coordinate - size / 2.0)
+    right_top = tf.minimum(coord + s / 2.0, coordinate + size / 2.0)
+    left, bottom = tf.split(left_bottom, [1, 1], axis=3)
+    right, top = tf.split(left_bottom, [1, 1], axis=3)
+    valid_intersection = tf.reduce_all(
+      tf.greater(right_top, left_bottom), axis=3)
+    area = tf.reduce_prod(right_top - left_bottom, axis=3)
+    true_area = tf.maximum(tf.reduce_prod(size, axis=3), 1e-5)
+    intersect_area = tf.reduce_sum(
+      tf.cast(valid_intersection, tf.float32) * area / true_area) / num_obj
+    return indicator_accuracy, intersect_area
+
 
 def train(args):
   loader = WIDERLoader(args.dbname)
-  loader.load_data()
+  loader.load_training_data()
+  loader.load_validation_data()
 
   yolo = YOLOFace(loader.get_input_size(), loader.get_output_size(),
     args.inference,
@@ -321,6 +340,8 @@ def train(args):
       tf.get_default_graph())
 
   training_data, training_label = loader.get_training_data()
+  valid_data, valid_label = loader.get_validation_data()
+  valid_index = 0
   training_data_size = len(training_data)
 
   with tf.Session() as sess:
@@ -335,19 +356,26 @@ def train(args):
       training_label_batch = training_label[offset:to, :]
 
       if epoch % args.display_epoches == 0:
-        loss, ind_loss, no_obj_loss, coord_loss, size_loss, \
-          indicator_accuarcy, intersect_ratio = sess.run([yolo.loss,
-            yolo.ind_loss, yolo.no_obj_loss, yolo.coord_loss,
-            yolo.size_loss, yolo.indicator_accuracy,
-            yolo.intersect_area], feed_dict={
-              yolo.input_images: training_data_batch,
-              yolo.label_grids: training_label_batch,
-              yolo.keep_prob: 1.0,
-            })
+        offset = valid_index
+        to = valid_index + args.batch_size
+        valid_data_batch = valid_data[offset:to, :]
+        valid_label_batch = valid_label[offset:to, :]
+
+        losses_tensor = [yolo.loss, yolo.ind_loss, yolo.no_obj_loss,
+          yolo.coord_loss, yolo.size_loss,
+          yolo.indicator_accuracy, yolo.intersect_area,
+          yolo.valid_indicator_accuarcy, yolo.valid_intersect_area]
+        losses = sess.run(losses_tensor, feed_dict={
+            yolo.input_images: training_data_batch,
+            yolo.label_grids: training_label_batch,
+            yolo.valid_images: valid_data_batch,
+            yolo.valid_labels: valid_label_batch,
+            yolo.keep_prob: 1.0,
+          })
         logger.info('%d. loss: %f, ind: %f, no-obj: %f, coord: %f, size: %f',
-          epoch, loss, ind_loss, no_obj_loss, coord_loss, size_loss)
-        logger.info('indicator accuarcy: %f, intersect ratio: %f',
-          indicator_accuarcy, intersect_ratio)
+          epoch, losses[0], losses[1], losses[2], losses[3], losses[4])
+        logger.info('train: %f, %f, valid: %f, %f',
+          losses[5], losses[6], losses[7], losses[8])
 
         ave = total_time / (epoch + 1)
         time_remaining = (args.max_epoches - epoch) * ave
@@ -402,6 +430,7 @@ def fit(original, size):
       ((size - ow) / 2, 0))
   return np.array(output_image, np.uint8)
 
+
 def inference(args):
   loader = WIDERLoader(args.dbname)
 
@@ -409,12 +438,7 @@ def inference(args):
     yolo = YOLOFace(loader.get_input_size(), loader.get_output_size(),
       args.inference)
 
-  #  test_image = np.array(Image.open('test_image.jpg'), dtype=np.float32)
-
-  config = tf.ConfigProto(log_device_placement=True)
-  #  config.gpu_options.per_process_gpu_memory_fraction=0.3
-  #  config.operation_timeout_in_ms=50000
-  with tf.Session(config=config) as sess:
+  with tf.Session() as sess:
     sess.run(tf.global_variables_initializer())
 
     try:
@@ -442,15 +466,6 @@ def inference(args):
 
     except Exception as e:
       logger.error(e)
-    #  count = 1000
-    #  total = 0
-    #  for i in range(count):
-    #    start = time.time()
-    #    result = yolo.predict(sess, test_image)
-    #    passed = time.time() - start
-    #    total += passed
-    #  print(result)
-    #  logger.info('time used for 1 frame: %f' % (total / count))
 
 
 def main():
