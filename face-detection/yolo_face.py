@@ -399,7 +399,6 @@ class YOLOFace(object):
         weights_initializer=tf.variance_scaling_initializer())
     return logits
 
-
   def multiple_conv(self, size, ksize, inputs, multiple=2):
     conv = tf.contrib.layers.conv2d(inputs, size, stride=1, kernel_size=ksize,
       weights_initializer=tf.variance_scaling_initializer())
