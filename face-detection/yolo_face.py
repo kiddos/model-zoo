@@ -42,7 +42,8 @@ class YOLOFace(object):
       input_size = tf.constant(float(self.input_size))
       coord_output = coord * input_size
       size_output = s * input_size
-      self.output = tf.concat([ind, coord_output, size_output], axis=3)
+      self.output = tf.concat([ind, coord_output, size_output], axis=3,
+        name='output')
 
     with tf.name_scope('loss'):
       indicator, coordinate, size = tf.split(self.label_grids,
