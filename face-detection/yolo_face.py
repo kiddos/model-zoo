@@ -353,6 +353,72 @@ class YOLOFace(object):
         weights_initializer=tf.random_normal_initializer(stddev=stddev))
     return logits
 
+  def inference_v3(self, inputs):
+    ksize = 3
+    stddev = 0.016
+    with tf.name_scope('conv1'):
+      conv = tf.contrib.layers.conv2d(inputs, 8, stride=1, kernel_size=ksize,
+        weights_initializer=tf.contrib.layers.variance_scaling_initializer())
+
+    with tf.name_scope('pool1'):
+      pool = tf.contrib.layers.max_pool2d(conv, 2)
+
+    with tf.name_scope('conv2'):
+      conv = tf.contrib.layers.conv2d(pool, 16, stride=1, kernel_size=ksize,
+        weights_initializer=tf.contrib.layers.variance_scaling_initializer())
+
+    with tf.name_scope('pool2'):
+      pool = tf.contrib.layers.max_pool2d(conv, 2)
+
+    with tf.name_scope('conv3'):
+      conv = self.multiple_conv(32, ksize, pool)
+
+    with tf.name_scope('pool3'):
+      pool = tf.contrib.layers.max_pool2d(conv, 2)
+
+    with tf.name_scope('conv4'):
+      conv = self.multiple_conv(64, ksize, pool)
+
+    with tf.name_scope('pool4'):
+      pool = tf.contrib.layers.max_pool2d(conv, 2)
+
+    with tf.name_scope('conv5'):
+      conv = self.multiple_conv(128, ksize, pool, multiple=3)
+
+    with tf.name_scope('conv6'):
+      conv = self.multiple_conv(128, ksize, conv, multiple=3)
+
+    with tf.name_scope('conv7'):
+      conv = self.multiple_conv(128, ksize, conv, multiple=3)
+
+    with tf.name_scope('drop7'):
+      drop = tf.nn.dropout(conv, keep_prob=self.keep_prob)
+
+    with tf.name_scope('conv8'):
+      conv = self.multiple_conv(128, ksize, drop, multiple=3)
+
+    with tf.name_scope('drop8'):
+      drop = tf.nn.dropout(conv, keep_prob=self.keep_prob)
+
+    with tf.name_scope('output'):
+      logits = tf.contrib.layers.conv2d(drop, 5, stride=1, kernel_size=ksize,
+        activation_fn=None,
+        weights_initializer=tf.random_normal_initializer(stddev=stddev))
+    return logits
+
+  def multiple_conv(self, size, ksize, inputs, multiple=2):
+    conv = tf.contrib.layers.conv2d(inputs, size, stride=1, kernel_size=ksize,
+      weights_initializer=tf.contrib.layers.variance_scaling_initializer())
+
+    for i in range(multiple):
+      conv = tf.contrib.layers.conv2d(conv, size / 2, stride=1, kernel_size=1,
+        weights_initializer=tf.contrib.layers.variance_scaling_initializer())
+
+      conv = tf.contrib.layers.conv2d(conv, size, stride=1, kernel_size=ksize,
+        weights_initializer=tf.contrib.layers.variance_scaling_initializer())
+
+    return conv
+
   def predict_batch(self, sess, input_images):
     return sess.run(self.output, feed_dict={
       self.input_images: input_images,
