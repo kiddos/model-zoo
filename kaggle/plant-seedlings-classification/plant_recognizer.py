@@ -384,6 +384,82 @@ class PlantRecognizer(object):
       outputs = tf.nn.softmax(logits)
     return logits, outputs
 
+  def inference_v6(self, inputs):
+    ksize = 3
+    with tf.name_scope('conv1'):
+      conv = tf.contrib.layers.conv2d(inputs, 16, stride=1, kernel_size=ksize,
+        weights_initializer=tf.random_normal_initializer(stddev=0.0006))
+
+    with tf.name_scope('drop1'):
+      drop = tf.nn.dropout(conv, keep_prob=self.keep_prob)
+
+    with tf.name_scope('conv2'):
+      conv = tf.contrib.layers.conv2d(drop, 16, stride=1, kernel_size=ksize,
+        weights_initializer=tf.variance_scaling_initializer())
+
+      conv = tf.contrib.layers.conv2d(conv, 8, stride=1, kernel_size=1,
+        weights_initializer=tf.variance_scaling_initializer())
+
+      conv = tf.contrib.layers.conv2d(conv, 16, stride=1, kernel_size=ksize,
+        weights_initializer=tf.variance_scaling_initializer())
+
+    with tf.name_scope('pool2'):
+      pool = tf.contrib.layers.max_pool2d(conv, 2)
+
+    with tf.name_scope('conv3'):
+      conv = tf.contrib.layers.conv2d(pool, 32, stride=1, kernel_size=ksize,
+        weights_initializer=tf.variance_scaling_initializer())
+
+      conv = tf.contrib.layers.conv2d(conv, 16, stride=1, kernel_size=1,
+        weights_initializer=tf.variance_scaling_initializer())
+
+      conv = tf.contrib.layers.conv2d(conv, 32, stride=1, kernel_size=ksize,
+        weights_initializer=tf.variance_scaling_initializer())
+
+    with tf.name_scope('drop3'):
+      drop = tf.nn.dropout(conv, keep_prob=self.keep_prob)
+
+    with tf.name_scope('conv4'):
+      conv = tf.contrib.layers.conv2d(drop, 32, stride=1, kernel_size=ksize,
+        weights_initializer=tf.variance_scaling_initializer())
+
+      conv = tf.contrib.layers.conv2d(conv, 16, stride=1, kernel_size=1,
+        weights_initializer=tf.variance_scaling_initializer())
+
+      conv = tf.contrib.layers.conv2d(conv, 32, stride=1, kernel_size=ksize,
+        weights_initializer=tf.variance_scaling_initializer())
+
+    with tf.name_scope('pool4'):
+      pool = tf.contrib.layers.max_pool2d(conv, 2)
+
+    with tf.name_scope('conv5'):
+      conv = tf.contrib.layers.conv2d(pool, 128, stride=1, kernel_size=ksize,
+        weights_initializer=tf.variance_scaling_initializer())
+
+    with tf.name_scope('drop5'):
+      drop = tf.nn.dropout(conv, keep_prob=self.keep_prob)
+
+    with tf.name_scope('conv6'):
+      conv = tf.contrib.layers.conv2d(drop, 128, stride=1, kernel_size=ksize,
+        weights_initializer=tf.variance_scaling_initializer())
+
+    with tf.name_scope('pool6'):
+      pool = tf.contrib.layers.max_pool2d(conv, 2)
+
+    with tf.name_scope('fully_connected'):
+      connect_shape = pool.get_shape().as_list()
+      connect_size = connect_shape[1] * connect_shape[2] * connect_shape[3]
+      fc = tf.contrib.layers.fully_connected(
+        tf.reshape(pool, [-1, connect_size]), 256,
+        weights_initializer=tf.variance_scaling_initializer())
+
+    with tf.name_scope('output'):
+      logits = tf.contrib.layers.fully_connected(fc, self.output_size,
+        activation_fn=None,
+        weights_initializer=tf.variance_scaling_initializer())
+      outputs = tf.nn.softmax(logits)
+    return logits, outputs
+
   def prepare_folder(self):
     index = 0
     folder = 'plant-recognizer-%s_%d' % (self.inference, index)
