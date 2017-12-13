@@ -14,7 +14,19 @@ python wider_prepare.py --dbname wider256x256-16x16.sqlite3 --output-size 16
 ## Train the model
 
 ```
-python yolo_face.py --learning-rate=1e-3 --saving True
+python yolo_train.py --dbname wider256x256-16x16.sqlite --inference inference_v2 --learning-rate=1e-3 --saving True
+```
+
+## Freeze the graph
+
+```
+python yolo_freeze.py --checkpoint yolo_face-inference_v2_0/yolo-100000
+```
+
+## Run the model
+
+```
+python yolo_run.py --model yolo.pb
 ```
 
 ## Citation
