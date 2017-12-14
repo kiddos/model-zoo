@@ -36,7 +36,9 @@ def intersect(c1, c2):
 def run(graph, output_node_name):
   images = graph.get_tensor_by_name('import/input_images:0')
   keep_prob = graph.get_tensor_by_name('import/keep_prob:0')
-  output = graph.get_tensor_by_name('import/yolo/concat:0')
+  output = graph.get_tensor_by_name('import/yolo/predition:0')
+
+  image_size = images.get_shape().as_list()[1]
   with tf.Session(graph=graph) as sess:
     try:
       import cv2
@@ -46,7 +48,7 @@ def run(graph, output_node_name):
         while True:
           _, img = camera.read()
           img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-          img = fit(Image.fromarray(img), 256)
+          img = fit(Image.fromarray(img), image_size)
 
           result = sess.run(output, feed_dict={
             images: img,
@@ -74,13 +76,12 @@ def run(graph, output_node_name):
                 (int(c[0] + c[2] / 2 + padding), int(c[1] + c[3] / 2 + padding)),
                 (0, 255, 0), thickness=3)
 
-              #  print(i)
+              # apply non-maximum suppression
               for j in range(len(p)):
                 if p[j] > 0.8:
                   c2 = coord[j, :]
                   if intersect(c, c2):
                     p[j] = 0.0
-                    #  print('intersec', i, j, p[j])
 
           cv2.imshow('Image', cv2.resize(cv2.cvtColor(img, cv2.COLOR_RGB2BGR),
             (512, 512)))
