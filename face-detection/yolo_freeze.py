@@ -44,7 +44,7 @@ def main():
   parser.add_argument('--checkpoint', dest='checkpoint', type=str,
     help='checkpoint to load and freeze')
   parser.add_argument('--output-nodes', dest='output_nodes', type=str,
-    default='yolo/predict', help='output node name')
+    default='yolo/prediction', help='output node name')
   parser.add_argument('--output-graph', dest='output_graph', type=str,
     default='yolo.pb', help='output graph name')
 
