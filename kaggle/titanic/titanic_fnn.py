@@ -1,6 +1,7 @@
 import tensorflow as tf
 import numpy as np
 import logging
+import os
 from argparse import ArgumentParser
 
 from titanic_prepare import load_data
@@ -31,10 +32,17 @@ class Titanic(object):
       self.learning_rate = tf.Variable(learning_rate, trainable=False)
       optimizer = tf.train.GradientDescentOptimizer(self.learning_rate)
       self.train_ops = optimizer.minimize(self.loss)
+      self.decay_lr = tf.assign(self.learning_rate, self.learning_rate * 0.9)
+      tf.summary.scalar('learning_rate', self.learning_rate)
 
     with tf.name_scope('evaluation'):
       self.accuray = self.evaluate(self.output, self.labels)
       self.valid_accuracy = self.evaluate(self.valid_output, self.valid_labels)
+      tf.summary.scalar('accuarcy', self.accuray)
+      tf.summary.scalar('validation_accuarcy', self.valid_accuray)
+
+    with tf.name_scope('summary'):
+      self.summary = tf.summary.merge_all()
 
   def _setup_inputs(self):
     self.inputs = tf.placeholder(dtype=tf.float32, name='inputs',
@@ -78,15 +86,37 @@ class Titanic(object):
     accuracy = tf.reduce_mean(tf.cast(tf.equal(p, l), tf.float32))
     return accuracy
 
+  def prepare_folder(self):
+    index = 0
+    folder = 'titanic_fnn_%d' % index
+    while os.path.isdir(folder):
+      index += 1
+      folder = 'titanic_fnn_%d' % index
+    os.mkdir(folder)
+    return folder
+
 
 def train(args):
-  model = Titanic(9, 2)
+  model = Titanic(9, 2, learning_rate=args.learning_rate)
 
   training_data, training_label, valid_data, valid_label = \
     load_data(args.csv_file)
   data_size = len(training_data)
   logger.info('training data size: %d', len(training_data))
   logger.info('validation data size: %d', len(valid_data))
+
+  if args.load_all:
+    training_data = np.concatenate([training_data, valid_data], axis=1)
+    training_label = np.concatenate([training_label, valid_label], axis=1)
+
+  if args.saving:
+    folder = model.prepare_folder()
+    checkpoint = os.path.join(folder, 'titanic')
+
+    saver = tf.train.Saver()
+
+    summary_writer = tf.summary.FileWriter(os.path.join(folder, 'summary'),
+      tf.get_default_graph())
 
   config = tf.ConfigProto()
   config.gpu_options.allow_growth = True
@@ -127,6 +157,18 @@ def train(args):
         model.keep_prob: args.keep_prob,
       })
 
+      if epoch % args.save_epoch == 0:
+        saver.save(sess, checkpoint, global_step=epoch)
+
+        summary = sess.run(model.summary, feed_dict={
+          model.inputs: data_batch,
+          model.labels: label_batch,
+          model.valid_inputs: valid_data_batch,
+          model.valid_labels: valid_label_batch,
+          model.keep_prob: 1.0
+        })
+        summary_writer.add_summary(summary, global_step=epoch)
+
 
 def main():
   parser = ArgumentParser()
@@ -140,6 +182,9 @@ def main():
   parser.add_argument('--csv-file', dest='csv_file', default='train.csv',
     type=str, help='training csv file')
 
+  parser.add_argument('--saving', dest='saving', default=False,
+    type=bool, help='rather to save model or not')
+
   parser.add_argument('--learning-rate', dest='learning_rate', default=1e-4,
     type=float, help='learning rate to train model')
   parser.add_argument('--max-epoches', dest='max_epoches', default=60000,
@@ -148,14 +193,12 @@ def main():
     type=int, help='epoches to evaluation')
   parser.add_argument('--save-epoches', dest='save_epoch', default=1000,
     type=int, help='epoches to save model')
-  parser.add_argument('--batch-size', dest='batch_size', default=128,
-    type=int, help='batch size to train model')
-  parser.add_argument('--saving', dest='saving', default=False,
-    type=bool, help='rather to save model or not')
-  parser.add_argument('--keep-prob', dest='keep_prob', default=0.8,
-    type=float, help='keep probability for dropout')
   parser.add_argument('--decay-epoch', dest='decay_epoch', default=10000,
     type=int, help='epoches to decay learning rate')
+  parser.add_argument('--batch-size', dest='batch_size', default=128,
+    type=int, help='batch size to train model')
+  parser.add_argument('--keep-prob', dest='keep_prob', default=0.8,
+    type=float, help='keep probability for dropout')
 
   args = parser.parse_args()
 
