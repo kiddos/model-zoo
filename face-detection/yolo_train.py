@@ -324,6 +324,46 @@ class YOLOFace(object):
         weights_initializer=tf.variance_scaling_initializer())
     return logits
 
+  def inference_v4(self, inputs):
+    ksize = 3
+    with tf.name_scope('conv1'):
+      conv = tf.contrib.layers.conv2d(inputs, 8, stride=1, kernel_size=ksize,
+        weights_initializer=tf.random_normal_initializer(stddev=0.0006))
+
+    with tf.name_scope('pool1'):
+      pool = tf.contrib.layers.max_pool2d(conv, 2)
+
+    with tf.name_scope('conv2'):
+      conv = tf.contrib.layers.conv2d(pool, 32, stride=1, kernel_size=ksize,
+        weights_initializer=tf.variance_scaling_initializer())
+
+    with tf.name_scope('pool2'):
+      pool = tf.contrib.layers.max_pool2d(conv, 2)
+
+    with tf.name_scope('conv3'):
+      conv = self.multiple_conv(64, ksize, pool, multiple=2)
+
+    with tf.name_scope('pool3'):
+      pool = tf.contrib.layers.max_pool2d(conv, 2)
+
+    with tf.name_scope('conv4'):
+      conv = self.multiple_conv(128, ksize, pool, multiple=3)
+
+    with tf.name_scope('pool4'):
+      pool = tf.contrib.layers.max_pool2d(conv, 2)
+
+    with tf.name_scope('conv5'):
+      conv = self.multiple_conv(256, ksize, pool, multiple=3)
+
+    with tf.name_scope('drop5'):
+      drop = tf.nn.dropout(conv, keep_prob=self.keep_prob)
+
+    with tf.name_scope('output'):
+      logits = tf.contrib.layers.conv2d(drop, 5, stride=1, kernel_size=ksize,
+        activation_fn=None,
+        weights_initializer=tf.variance_scaling_initializer())
+    return logits
+
   def multiple_conv(self, size, ksize, inputs, multiple=2):
     conv = tf.contrib.layers.conv2d(inputs, size, stride=1, kernel_size=ksize,
       weights_initializer=tf.variance_scaling_initializer())
@@ -404,7 +444,9 @@ def train(args):
   logger.info('training data: %d, validation data: %d',
     training_data_size, valid_data_size)
 
-  with tf.Session() as sess:
+  config = tf.ConfigProto()
+  config.gpu_options.allow_growth = True
+  with tf.Session(config=config) as sess:
     sess.run(tf.global_variables_initializer())
 
     total_time = 0
@@ -502,13 +544,13 @@ def fit(original, size):
 
 
 def inference(args):
-  loader = WIDERLoader(args.dbname)
-
   with tf.device('/:cpu0'):
-    yolo = YOLOFace(loader.get_input_size(), loader.get_output_size(),
+    yolo = YOLOFace(args.test_input_size, args.test_output_size,
       args.inference)
 
-  with tf.Session() as sess:
+  config = tf.ConfigProto()
+  config.gpu_options.allow_growth = True
+  with tf.Session(config=config) as sess:
     sess.run(tf.global_variables_initializer())
 
     try:
@@ -575,6 +617,11 @@ def main():
     default=0.8, help='keep probability for dropout')
   parser.add_argument('--saving', dest='saving', type=str,
     default='False', help='rather to save the training result')
+
+  parser.add_argument('--test-input-size', dest='test_input_size',
+    default=224, type=int, help='input size for inference mode')
+  parser.add_argument('--test-output-size', dest='test_output_size',
+    default=14, type=int, help='output size for inference mode')
 
   args = parser.parse_args()
 
