@@ -29,30 +29,59 @@ class Generator(object):
     input_reshaped = tf.reshape(inputs, [-1, 1, 1, self.num_classes])
     noise_reshaped = tf.reshape(noise, [-1, 1, 1, self.noise_size])
 
-    ksize = 3
+    ksize = 1
     with tf.name_scope('conv1'):
       conv = tf.contrib.layers.conv2d(
-        tf.concat([input_reshaped, noise_reshaped], axis=3), 64,
+        tf.concat([input_reshaped, noise_reshaped], axis=3), 32,
         stride=1, kernel_size=ksize,
         trainable=trainable,
         weights_initializer=tf.variance_scaling_initializer())
 
+    with tf.name_scope('norm1'):
+      norm = tf.layers.batch_normalization(conv)
+
     with tf.name_scope('conv2'):
-      conv = tf.contrib.layers.conv2d(conv, 128, stride=1, kernel_size=ksize,
+      conv = tf.contrib.layers.conv2d(norm, 64, stride=1, kernel_size=ksize,
         trainable=trainable,
         weights_initializer=tf.variance_scaling_initializer())
 
     with tf.name_scope('conv3'):
+      conv = tf.contrib.layers.conv2d(conv, 128, stride=1, kernel_size=ksize,
+        trainable=trainable,
+        weights_initializer=tf.variance_scaling_initializer())
+
+    with tf.name_scope('conv4'):
       size = self.image_size * self.image_size
       conv = tf.contrib.layers.conv2d(conv, size, stride=1, kernel_size=ksize,
         trainable=trainable,
         weights_initializer=tf.variance_scaling_initializer())
       conv = tf.reshape(conv, [-1, self.image_size, self.image_size, 1])
 
-    with tf.name_scope('output'):
-      output = tf.contrib.layers.conv2d(conv, 3, stride=1, kernel_size=ksize,
+    with tf.name_scope('conv5'):
+      conv = tf.contrib.layers.conv2d(conv, 256, stride=1, kernel_size=3,
         trainable=trainable,
         weights_initializer=tf.variance_scaling_initializer())
+
+    with tf.name_scope('conv6'):
+      conv = tf.contrib.layers.conv2d(conv, 128, stride=1, kernel_size=ksize,
+        trainable=trainable,
+        weights_initializer=tf.variance_scaling_initializer())
+
+    with tf.name_scope('conv7'):
+      conv = tf.contrib.layers.conv2d(conv, 256, stride=1, kernel_size=3,
+        trainable=trainable,
+        weights_initializer=tf.variance_scaling_initializer())
+
+    with tf.name_scope('output'):
+      #  output = tf.contrib.layers.conv2d(conv, 3, stride=1, kernel_size=ksize,
+      #    trainable=trainable, activation_fn=None,
+      #    weights_initializer=tf.random_normal_initializer(stddev=127.0),
+      #    biases_initializer=tf.random_normal_initializer(mean=127.0,
+      #      stddev=10.0))
+      output = tf.contrib.layers.conv2d(conv, 3, stride=1, kernel_size=ksize,
+        trainable=trainable, activation_fn=None,
+        weights_initializer=tf.variance_scaling_initializer())
+      output = (output * 32 * 127) + 127.0
     return output
 
 
@@ -72,17 +101,18 @@ class Discriminator(object):
       shape=[])
 
   def inference(self, inputs, trainable=True):
-    with tf.name_scope('prenorm'):
-      norm = tf.layers.batch_normalization(inputs)
 
     ksize = 3
     with tf.name_scope('conv1'):
-      conv = tf.contrib.layers.conv2d(norm, 32, stride=1, kernel_size=ksize,
+      conv = tf.contrib.layers.conv2d(inputs, 32, stride=1, kernel_size=ksize,
         trainable=trainable,
         weights_initializer=tf.variance_scaling_initializer())
 
+    with tf.name_scope('norm1'):
+      norm = tf.layers.batch_normalization(conv)
+
     with tf.name_scope('drop1'):
-      drop = tf.nn.dropout(conv, keep_prob=self.keep_prob)
+      drop = tf.nn.dropout(norm, keep_prob=self.keep_prob)
 
     with tf.name_scope('conv2'):
       conv = tf.contrib.layers.conv2d(drop, 32, stride=1, kernel_size=ksize,
@@ -120,7 +150,7 @@ class Discriminator(object):
       logits = tf.contrib.layers.fully_connected(fc, self.num_classes,
         activation_fn=None, trainable=trainable,
         weights_initializer=tf.variance_scaling_initializer())
-      output = tf.nn.softmax(logits)
+      output = tf.nn.sigmoid(logits)
     return logits, output
 
 
@@ -131,11 +161,11 @@ class PlantGAN(object):
     self.input_size = input_size
 
     generator = Generator(self.num_classes, self.input_size)
-    with tf.variable_scope('geneator_train'):
+    with tf.variable_scope('generator_train'):
       self.generator_train_output = generator.inference(generator.input_type,
         generator.noise)
       tf.summary.image('generator_generated_image', self.generator_train_output)
-    with tf.variable_scope('geneator_target'):
+    with tf.variable_scope('generator_target'):
       self.generator_target_output = generator.inference(generator.input_type,
         generator.noise, trainable=False)
     self.generator = generator
@@ -147,6 +177,7 @@ class PlantGAN(object):
       target_var = \
         tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, 'generator_target')
       assert len(train_var) == len(target_var)
+      assert len(train_var) > 0
 
       for i in range(len(train_var)):
         self.sync_generator_ops.append(tf.assign(target_var[i], train_var[i]))
@@ -167,18 +198,21 @@ class PlantGAN(object):
       target_var = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES,
         'discriminator_target')
       assert len(train_var) == len(target_var)
+      assert len(train_var) > 0
 
       for i in range(len(train_var)):
         self.sync_discriminator_ops.append(tf.assign(target_var[i], train_var[i]))
 
     with tf.name_scope('generator_loss'):
-      self.gloss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(
+      self.gloss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(
         logits=self.target_logits, labels=discriminator.labels))
       tf.summary.scalar('generator_loss', self.gloss)
 
     with tf.name_scope('discriminator_loss'):
-      self.dloss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(
+      self.dloss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(
         logits=self.train_logits, labels=discriminator.labels))
+      #  self.dloss = tf.reduce_mean(
+      #    tf.square(self.train_logits - discriminator.labels))
       tf.summary.scalar('discriminator_loss', self.dloss)
 
     with tf.name_scope('optimization'):
@@ -207,10 +241,10 @@ class PlantGAN(object):
 
   def prepare_folder(self):
     index = 0
-    folder = 'gan-%s_%d' % (self.inference, index)
+    folder = 'gan-%d' % (index)
     while os.path.isdir(folder):
       index += 1
-      folder = 'gan-%s_%d' % (self.inference, index)
+      folder = 'gan-%d' % (index)
     os.mkdir(folder)
     return folder
 
@@ -237,10 +271,7 @@ class PlantGAN(object):
       checkpoint = os.path.join(folder, 'gan')
 
       saver = tf.train.Saver()
-      temp_summary = os.path.join('/tmp', folder)
-      if not os.path.isdir(temp_summary):
-        os.mkdir(temp_summary)
-      summary_writer = tf.summary.FileWriter(temp_summary,
+      summary_writer = tf.summary.FileWriter(os.path.join(folder, 'summary'),
         tf.get_default_graph())
 
     config = tf.ConfigProto()
@@ -249,7 +280,13 @@ class PlantGAN(object):
       logger.info('initializing variables...')
       sess.run(tf.global_variables_initializer())
 
-      for epoch in range(args.max_epochs):
+      noise = np.random.normal(0.0, 1.0,
+        size=[args.batch_size, self.generator.noise_size])
+
+      data_batch = training_data[0:args.batch_size, :]
+      label_batch = training_labels[0:args.batch_size, :]
+
+      for epoch in range(args.max_epoches):
         offset = epoch % (data_size - args.batch_size)
         data_batch = training_data[offset:offset+args.batch_size, :]
         label_batch = training_labels[offset:offset+args.batch_size, :]
@@ -257,11 +294,12 @@ class PlantGAN(object):
         # generate images
         sess.run(self.sync_generator_ops)
         noise = np.random.normal(0.0, 1.0,
-          size=[args.batch_size, self.noise_size])
+          size=[args.batch_size, self.generator.noise_size])
         generated_images = sess.run(self.generator_target_output, feed_dict={
-          self.generator.input_type: training_labels,
+          self.generator.input_type: label_batch,
           self.generator.noise: noise,
         })
+        #  print(np.std(generated_images), np.mean(generated_images))
         generated_labels = np.zeros(shape=[args.batch_size,
           self.generator.num_classes])
 
@@ -271,7 +309,7 @@ class PlantGAN(object):
         if epoch % args.display_epoches == 0:
           gloss = sess.run(self.gloss, feed_dict={
             self.generator.noise: np.random.normal(0.0, 1.0,
-              size=[args.batch_size, self.noise_size]),
+              size=[args.batch_size, self.generator.noise_size]),
             self.generator.input_type: label_batch,
             self.discriminator.labels: label_batch,
             self.discriminator.keep_prob: 1.0,
@@ -295,24 +333,26 @@ class PlantGAN(object):
           logger.info('validation dloss: %f, classification: %f',
             valid_dloss, valid_accuracy)
 
-        # train discriminator
-        sess.run(self.train_discriminator, feed_dict={
-          self.discriminator.input_images: combined_data,
-          self.discriminator.labels: combined_label,
-          self.discriminator.keep_prob: args.keep_prob,
-        })
 
         # train generator
         if epoch % args.tau == 0:
           sess.run(self.sync_discriminator_ops)
           noise = np.random.normal(0.0, 1.0,
-            size=[args.batch_size, self.noise_size])
+            size=[args.batch_size, self.generator.noise_size])
           sess.run(self.train_generator, feed_dict={
             self.generator.input_type: label_batch,
             self.generator.noise: noise,
             self.discriminator.keep_prob: 1.0,
             self.discriminator.labels: label_batch,
           })
+
+        # train discriminator
+        sess.run(self.train_discriminator, feed_dict={
+          self.discriminator.input_images: combined_data,
+          self.discriminator.labels: combined_label,
+          self.discriminator.keep_prob: args.keep_prob,
+        })
+        #  print(np.std(logits))
 
         if epoch % args.save_epoches == 0 and epoch != 0 and args.saving:
           saver.save(sess, checkpoint, global_step=epoch)
@@ -338,8 +378,8 @@ def main():
   parser.add_argument('--dlearning-rate', dest='dlearning_rate',
     default=1e-3, type=float, help='discriminator learning rate')
   parser.add_argument('--tau', dest='tau',
-    default=10, type=int, help='the frequency for updating generator')
-  parser.add_argument('--max-epoches', dest='max_epoches', default=60000,
+    default=1, type=int, help='the frequency for updating generator')
+  parser.add_argument('--max-epoches', dest='max_epoches', default=100000,
     type=int, help='max epoches to train model')
   parser.add_argument('--display-epoches', dest='display_epoches', default=50,
     type=int, help='epoches to evaluation')
@@ -356,9 +396,13 @@ def main():
   parser.add_argument('--decay-epoch', dest='decay_epoch', default=10000,
     type=int, help='epoches to decay learning rate')
 
+  parser.add_argument('--load-all', dest='load_all', default=False,
+    type=bool, help='loading all training data')
+
   args = parser.parse_args()
 
-  PlantGAN(12, 32, args.glearning_rate, args.dlearning_rate)
+  gan = PlantGAN(12, 32, args.glearning_rate, args.dlearning_rate)
+  gan.train(args)
 
 
 
