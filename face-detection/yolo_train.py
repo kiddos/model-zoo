@@ -32,17 +32,24 @@ class YOLOFace(object):
       logger.error('no %s inference function is found.')
       sys.exit(1)
 
-    #  with tf.device('/:cpu0'):
     self._setup_inputs()
 
     with tf.variable_scope('yolo'):
-      logits = self.inference_func(self.input_images)
+      preprocessed = self.preprocess_inputs(self.input_images)
+      logits = self.inference_func(preprocessed)
       ind, coord, s = tf.split(logits, [1, 2, 2], axis=3)
 
-      input_size = tf.constant(float(self.input_size))
-      coord_output = coord * input_size
-      size_output = s * input_size
-      self.output = tf.concat([ind, coord_output, size_output], axis=3,
+      tf.summary.image('input_images', self.input_images)
+      tf.summary.image('preprocessed_input_images', preprocessed)
+
+    # outputs
+    with tf.variable_scope('yolo', reuse=True):
+      outputs = self.inference_func(self.input_images)
+      ind_output, coord_output, size_output = \
+        tf.split(outputs, [1, 2, 2], axis=3)
+      coord_output = coord_output * self.input_size
+      size_output = size_output * self.input_size
+      self.output = tf.concat([ind_output, coord_output, size_output], axis=3,
         name='prediction')
 
     with tf.name_scope('loss'):
@@ -124,7 +131,6 @@ class YOLOFace(object):
       shape=[None, self.input_size, self.input_size, 3], name='input_images')
     self.label_grids = tf.placeholder(dtype=tf.float32, name='labels',
       shape=[None, self.output_size, self.output_size, self.output_channel])
-    tf.summary.image('input_images', self.input_images)
 
     # validation
     self.valid_images = tf.placeholder(dtype=tf.float32,
@@ -135,6 +141,11 @@ class YOLOFace(object):
 
     self.keep_prob = tf.placeholder(dtype=tf.float32,
       shape=[], name='keep_prob')
+
+  def preprocess_inputs(self, inputs):
+    processed = tf.image.random_brightness(inputs, max_delta=10.0)
+    processed = tf.image.random_contrast(processed, lower=0.0, upper=10.0)
+    return processed
 
   def inference_v0(self, inputs):
     ksize = 3
