@@ -36,7 +36,10 @@ def intersect(c1, c2):
 def run(graph, output_node_name):
   images = graph.get_tensor_by_name('import/input_images:0')
   keep_prob = graph.get_tensor_by_name('import/keep_prob:0')
-  output = graph.get_tensor_by_name('import/yolo/prediction:0')
+  try:
+    output = graph.get_tensor_by_name('import/yolo/prediction:0')
+  except:
+    output = graph.get_tensor_by_name('import/yolo_1/prediction:0')
 
   image_size = images.get_shape().as_list()[1]
   with tf.Session(graph=graph) as sess:
