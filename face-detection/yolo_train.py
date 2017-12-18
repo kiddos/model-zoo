@@ -378,38 +378,38 @@ class YOLOFace(object):
   def inference_v5(self, inputs):
     ksize = 3
     with tf.name_scope('conv1'):
-      conv = tf.contrib.layers.conv2d(inputs, 4, stride=1, kernel_size=ksize,
+      conv = tf.contrib.layers.conv2d(inputs, 8, stride=1, kernel_size=ksize,
         weights_initializer=tf.random_normal_initializer(stddev=0.0006))
 
     with tf.name_scope('pool1'):
       pool = tf.contrib.layers.max_pool2d(conv, 2)
 
     with tf.name_scope('conv2'):
-      conv = self.multiple_conv(8, ksize, pool, multiple=1)
+      conv = self.multiple_conv(16, ksize, pool, multiple=1)
 
     with tf.name_scope('pool2'):
       pool = tf.contrib.layers.max_pool2d(conv, 2)
 
     with tf.name_scope('conv3'):
-      conv = self.multiple_conv(16, ksize, pool, multiple=1)
+      conv = self.multiple_conv(32, ksize, pool, multiple=1)
 
     with tf.name_scope('pool3'):
       pool = tf.contrib.layers.max_pool2d(conv, 2)
 
     with tf.name_scope('conv4'):
-      conv = self.multiple_conv(32, ksize, pool)
+      conv = self.multiple_conv(64, ksize, pool)
 
     with tf.name_scope('pool4'):
       pool = tf.contrib.layers.max_pool2d(conv, 2)
 
     with tf.name_scope('conv5'):
-      conv = self.multiple_conv(64, ksize, pool)
+      conv = self.multiple_conv(128, ksize, pool)
 
     with tf.name_scope('pool5'):
       pool = tf.contrib.layers.max_pool2d(conv, 2)
 
     with tf.name_scope('conv6'):
-      conv = self.multiple_conv(128, ksize, pool, multiple=3)
+      conv = self.multiple_conv(256, ksize, pool, multiple=3)
 
     with tf.name_scope('drop6'):
       drop = tf.nn.dropout(conv, keep_prob=self.keep_prob)
