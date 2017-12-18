@@ -33,7 +33,7 @@ def intersect(c1, c2):
   return left <= right and top <= bot
 
 
-def run(graph, output_node_name):
+def run(graph, output_node_name, threshold):
   images = graph.get_tensor_by_name('import/input_images:0')
   keep_prob = graph.get_tensor_by_name('import/keep_prob:0')
   try:
@@ -71,7 +71,7 @@ def run(graph, output_node_name):
           for i in range(len(p)):
             prob = p[i]
 
-            if prob > 0.8:
+            if prob > threshold:
               c = coord[i, :]
               padding = 10
               cv2.rectangle(img,
@@ -80,8 +80,8 @@ def run(graph, output_node_name):
                 (0, 255, 0), thickness=3)
 
               # apply non-maximum suppression
-              for j in range(len(p)):
-                if p[j] > 0.8:
+              for j in range(i, len(p)):
+                if p[j] > threshold:
                   c2 = coord[j, :]
                   if intersect(c, c2):
                     p[j] = 0.0
@@ -111,12 +111,14 @@ def main():
   parser = ArgumentParser()
   parser.add_argument('--model', dest='model', type=str,
     default='yolo.pb', help='model.pb path')
+  parser.add_argument('--threshold', dest='threshold', type=float,
+    default=0.8, help='threshold for indicator that there is an object')
 
   args = parser.parse_args()
 
   if os.path.isfile(args.model):
     graph = load_frozen_graph(args.model)
-    run(graph, args.model)
+    run(graph, args.model, args.threshold)
   else:
     logger.error('%s not found', args.model)
 
