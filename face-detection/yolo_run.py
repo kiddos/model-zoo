@@ -27,13 +27,13 @@ def fit(original, size):
 
 def intersect(c1, c2):
   left = np.max([c1[0] - c1[2] / 2, c2[0] - c2[2] / 2])
-  right = np.max([c1[0] + c1[2] / 2, c2[0] + c2[2] / 2])
+  right = np.min([c1[0] + c1[2] / 2, c2[0] + c2[2] / 2])
   top = np.min([c1[1] - c1[3] / 2, c2[1] + c2[3] / 2])
-  bot = np.min([c1[1] - c1[3] / 2, c2[1] + c2[3] / 2])
+  bot = np.max([c1[1] - c1[3] / 2, c2[1] + c2[3] / 2])
   return left <= right and top <= bot
 
 
-def run(graph, output_node_name, threshold):
+def run(graph, output_node_name, threshold, padding=20):
   images = graph.get_tensor_by_name('import/input_images:0')
   keep_prob = graph.get_tensor_by_name('import/keep_prob:0')
   try:
@@ -73,7 +73,6 @@ def run(graph, output_node_name, threshold):
 
             if prob > threshold:
               c = coord[i, :]
-              padding = 10
               cv2.rectangle(img,
                 (int(c[0] - c[2] / 2 - padding), int(c[1] - c[3] / 2 - padding)),
                 (int(c[0] + c[2] / 2 + padding), int(c[1] + c[3] / 2 + padding)),
