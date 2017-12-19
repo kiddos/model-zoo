@@ -143,8 +143,11 @@ class YOLOFace(object):
       shape=[], name='keep_prob')
 
   def preprocess_inputs(self, inputs):
-    processed = tf.image.random_brightness(inputs, max_delta=10.0)
+    random_noise = tf.random_normal_initializer(mean=0.0, stddev=10.0)
+    processed = tf.minimum(tf.maximum(inputs + random_noise(), 0), 255)
+    processed = tf.image.random_brightness(processed, max_delta=10.0)
     processed = tf.image.random_contrast(processed, lower=0.0, upper=10.0)
+    processed = tf.image.random_saturation(processed, lower=0.1, upper=3.0)
     return processed
 
   def inference_v0(self, inputs):
