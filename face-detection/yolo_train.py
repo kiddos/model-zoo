@@ -6,6 +6,7 @@ import logging
 import sys
 import time
 import os
+import math
 from PIL import Image, ImageDraw
 from argparse import ArgumentParser
 
@@ -148,7 +149,11 @@ class YOLOFace(object):
     processed = tf.minimum(tf.maximum(inputs + noise, 0), 255)
     processed = tf.image.random_brightness(processed, max_delta=10.0)
     processed = tf.image.random_contrast(processed, lower=0.0, upper=10.0)
-    #  processed = tf.image.random_saturation(processed, lower=0.1, upper=3.0)
+
+    reshaped = tf.reshape(processed, [-1, self.input_size, 3])
+    processed = tf.image.random_saturation(reshaped, lower=0.01, upper=3.0)
+    processed = tf.image.random_hue(processed, math.pi / 120)
+    processed = tf.reshape(processed, [-1, self.input_size, self.input_size, 3])
     return processed
 
   def inference_v0(self, inputs):
