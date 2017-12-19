@@ -144,10 +144,11 @@ class YOLOFace(object):
 
   def preprocess_inputs(self, inputs):
     random_noise = tf.random_normal_initializer(mean=0.0, stddev=10.0)
-    processed = tf.minimum(tf.maximum(inputs + random_noise(), 0), 255)
+    noise = random_noise([self.input_size, self.input_size, 3])
+    processed = tf.minimum(tf.maximum(inputs + noise, 0), 255)
     processed = tf.image.random_brightness(processed, max_delta=10.0)
     processed = tf.image.random_contrast(processed, lower=0.0, upper=10.0)
-    processed = tf.image.random_saturation(processed, lower=0.1, upper=3.0)
+    #  processed = tf.image.random_saturation(processed, lower=0.1, upper=3.0)
     return processed
 
   def inference_v0(self, inputs):
@@ -415,6 +416,45 @@ class YOLOFace(object):
       conv = self.multiple_conv(256, ksize, pool, multiple=3)
 
     with tf.name_scope('drop6'):
+      drop = tf.nn.dropout(conv, keep_prob=self.keep_prob)
+
+    with tf.name_scope('output'):
+      logits = tf.contrib.layers.conv2d(drop, 5, stride=1, kernel_size=ksize,
+        activation_fn=None,
+        weights_initializer=tf.variance_scaling_initializer())
+    return logits
+
+  def inference_v6(self, inputs):
+    ksize = 3
+    with tf.name_scope('conv1'):
+      conv = tf.contrib.layers.conv2d(inputs, 16, stride=1, kernel_size=ksize,
+        weights_initializer=tf.random_normal_initializer(stddev=0.0006))
+
+    with tf.name_scope('pool1'):
+      pool = tf.contrib.layers.max_pool2d(conv, 2)
+
+    with tf.name_scope('conv2'):
+      conv = self.multiple_conv(32, ksize, pool, multiple=1)
+
+    with tf.name_scope('pool2'):
+      pool = tf.contrib.layers.max_pool2d(conv, 2)
+
+    with tf.name_scope('conv3'):
+      conv = self.multiple_conv(64, ksize, pool, multiple=2)
+
+    with tf.name_scope('pool3'):
+      pool = tf.contrib.layers.max_pool2d(conv, 2)
+
+    with tf.name_scope('conv4'):
+      conv = self.multiple_conv(128, ksize, pool, multiple=3)
+
+    with tf.name_scope('pool4'):
+      pool = tf.contrib.layers.max_pool2d(conv, 2)
+
+    with tf.name_scope('conv5'):
+      conv = self.multiple_conv(256, ksize, pool, multiple=4)
+
+    with tf.name_scope('drop5'):
       drop = tf.nn.dropout(conv, keep_prob=self.keep_prob)
 
     with tf.name_scope('output'):
