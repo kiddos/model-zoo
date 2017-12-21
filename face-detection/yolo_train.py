@@ -698,11 +698,11 @@ def main():
 
   # training parameters
   parser.add_argument('--learning-rate', dest='learning_rate', type=float,
-    default=1e-4, help='learning rate for training')
+    default=1e-3, help='learning rate for training')
   parser.add_argument('--lambda-coord', dest='lambda_coord', type=float,
-    default=1.6, help='coefficient for coordinate loss')
+    default=6.0, help='coefficient for coordinate loss')
   parser.add_argument('--lambda-size', dest='lambda_size', type=float,
-    default=10.0, help='coefficient for size loss')
+    default=6.0, help='coefficient for size loss')
   parser.add_argument('--lambda-no-obj', dest='lambda_no_obj', type=float,
     default=0.86, help='coefficient for no-obj loss')
   parser.add_argument('--batch-size', dest='batch_size', type=int,
