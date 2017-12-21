@@ -712,7 +712,7 @@ def main():
   parser.add_argument('--display-epoches', dest='display_epoches', type=int,
     default=10, help='epoches to display training result')
   parser.add_argument('--save-epoches', dest='save_epoches', type=int,
-    default=1000, help='epoches to save training result')
+    default=10000, help='epoches to save training result')
   parser.add_argument('--summary-epoches', dest='summary_epoches', type=int,
     default=10, help='epoches to save training summary')
   parser.add_argument('--decay-epoches', dest='decay_epoches', type=int,
