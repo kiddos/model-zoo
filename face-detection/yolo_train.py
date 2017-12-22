@@ -439,25 +439,25 @@ class YOLOFace(object):
       pool = tf.contrib.layers.max_pool2d(conv, 2)
 
     with tf.name_scope('conv2'):
-      conv = self.multiple_conv(32, ksize, pool, multiple=1)
+      conv = self.multiple_conv(16, ksize, pool, multiple=2)
 
     with tf.name_scope('pool2'):
       pool = tf.contrib.layers.max_pool2d(conv, 2)
 
     with tf.name_scope('conv3'):
-      conv = self.multiple_conv(64, ksize, pool, multiple=1)
+      conv = self.multiple_conv(64, ksize, pool, multiple=3)
 
     with tf.name_scope('pool3'):
       pool = tf.contrib.layers.max_pool2d(conv, 2)
 
     with tf.name_scope('conv4'):
-      conv = self.multiple_conv(256, ksize, pool, multiple=1)
+      conv = self.multiple_conv(128, ksize, pool, multiple=3)
 
     with tf.name_scope('pool4'):
       pool = tf.contrib.layers.max_pool2d(conv, 2)
 
     with tf.name_scope('conv5'):
-      conv = self.multiple_conv(512, ksize, pool, multiple=1)
+      conv = self.multiple_conv(256, ksize, pool, multiple=6)
 
     with tf.name_scope('drop5'):
       drop = tf.nn.dropout(conv, keep_prob=self.keep_prob)
