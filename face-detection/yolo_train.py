@@ -147,12 +147,12 @@ class YOLOFace(object):
     random_noise = tf.random_normal_initializer(mean=0.0, stddev=6.0)
     noise = random_noise([self.input_size, self.input_size, 3])
     processed = tf.minimum(tf.maximum(inputs + noise, 0), 255)
-    #  processed = tf.image.random_brightness(processed, max_delta=0.1)
-    #  processed = tf.image.random_contrast(processed, lower=0.0, upper=2.0)
+    processed = tf.image.random_brightness(processed, max_delta=1e-3)
+    processed = tf.image.random_contrast(processed, lower=0.0, upper=2.0)
 
     reshaped = tf.reshape(processed, [-1, self.input_size, 3])
     #  processed = tf.image.random_hue(reshaped, 1e-6)
-    processed = tf.image.random_saturation(reshaped, lower=0.9, upper=1.1)
+    processed = tf.image.random_saturation(reshaped, lower=0.01, upper=2.0)
     processed = tf.reshape(processed, [-1, self.input_size, self.input_size, 3])
     return processed
 
@@ -439,25 +439,25 @@ class YOLOFace(object):
       pool = tf.contrib.layers.max_pool2d(conv, 2)
 
     with tf.name_scope('conv2'):
-      conv = self.multiple_conv(32, ksize, pool, multiple=1)
+      conv = self.multiple_conv(16, ksize, pool, multiple=2)
 
     with tf.name_scope('pool2'):
       pool = tf.contrib.layers.max_pool2d(conv, 2)
 
     with tf.name_scope('conv3'):
-      conv = self.multiple_conv(64, ksize, pool, multiple=1)
+      conv = self.multiple_conv(64, ksize, pool, multiple=3)
 
     with tf.name_scope('pool3'):
       pool = tf.contrib.layers.max_pool2d(conv, 2)
 
     with tf.name_scope('conv4'):
-      conv = self.multiple_conv(256, ksize, pool, multiple=1)
+      conv = self.multiple_conv(128, ksize, pool, multiple=3)
 
     with tf.name_scope('pool4'):
       pool = tf.contrib.layers.max_pool2d(conv, 2)
 
     with tf.name_scope('conv5'):
-      conv = self.multiple_conv(512, ksize, pool, multiple=1)
+      conv = self.multiple_conv(256, ksize, pool, multiple=6)
 
     with tf.name_scope('drop5'):
       drop = tf.nn.dropout(conv, keep_prob=self.keep_prob)
