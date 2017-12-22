@@ -15,7 +15,6 @@ logger.setLevel(logging.INFO)
 
 class MNIST(object):
   def __init__(self, inference, learning_rate=1e-3, saving=True):
-
     with tf.name_scope('inputs'):
       self._setup_inputs()
 
@@ -26,8 +25,20 @@ class MNIST(object):
 
     if hasattr(self, inference):
       inference_fn = getattr(self, inference)
+
     with tf.variable_scope('mnist'):
       logits, self.output = inference_fn(self.input_images)
+
+    with tf.variable_scope('mnist', reuse=True):
+      _, self.validation_output = inference_fn(self.validation_inputs)
+
+    with tf.name_scope('evaluation'):
+      self.accuracy = self.evaluate(self.output, self.labels)
+      self.validation_accuarcy = self.evaluate(self.validation_output,
+        self.validation_label)
+
+      tf.summary.scalar('train_accuarcy', self.accuracy)
+      tf.summary.scalar('validation_accuracy', self.validation_accuarcy)
 
     with tf.name_scope('loss'):
       self.loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(
@@ -41,10 +52,10 @@ class MNIST(object):
       self.train_ops = optimizer.minimize(self.loss)
 
       self.decay_lr = tf.assign(self.learning_rate,
-        self.learning_rate * 0.9, name='decay_learning_rate')
+        self.learning_rate * 0.66, name='decay_learning_rate')
 
     with tf.name_scope('summary'):
-      self.merged_summary = tf.summary.merge_all()
+      self.summary = tf.summary.merge_all()
 
   def prepare_folder(self):
     index = 0
@@ -61,6 +72,11 @@ class MNIST(object):
     self.labels = tf.placeholder(dtype=tf.float32, name='labels',
       shape=[None, 10])
     self.keep_prob = tf.placeholder(dtype=tf.float32, shape=(), name='keep_prob')
+
+    self.validation_inputs = tf.placeholder(dtype=tf.float32, name='input_images',
+      shape=[None, 28, 28, 1])
+    self.validation_label = tf.placeholder(dtype=tf.float32, name='labels',
+      shape=[None, 10])
 
   def inference_v0(self, inputs):
     with tf.name_scope('conv1'):
@@ -102,7 +118,47 @@ class MNIST(object):
       logits = tf.contrib.layers.fully_connected(fc, 10,
         activation_fn=None,
         weights_initializer=tf.variance_scaling_initializer())
-      outputs = tf.nn.softmax(logits)
+      outputs = tf.nn.softmax(logits, name='prediction')
+    return logits, outputs
+
+  def inference_v1(self, inputs):
+    with tf.name_scope('conv1'):
+      conv = tf.contrib.layers.conv2d(inputs, 64, stride=1, kernel_size=3,
+        weights_initializer=tf.random_normal_initializer(stddev=0.05))
+
+    with tf.name_scope('pool1'):
+      pool = tf.contrib.layers.max_pool2d(conv, 2)
+
+    with tf.name_scope('conv2'):
+      conv = self.multiple_conv(pool, 128, 3)
+
+    with tf.name_scope('pool2'):
+      pool = tf.contrib.layers.max_pool2d(conv, 2)
+
+    with tf.name_scope('conv3'):
+      conv = self.multiple_conv(pool, 256, 3)
+
+    with tf.name_scope('pool3'):
+      pool = tf.contrib.layers.max_pool2d(conv, 2)
+
+    with tf.name_scope('conv4'):
+      conv = self.multiple_conv(pool, 512, 3)
+
+    with tf.name_scope('drop4'):
+      drop = tf.nn.dropout(pool, keep_prob=self.keep_prob)
+
+    with tf.name_scope('fully_connected'):
+      connect_shape = drop.get_shape().as_list()
+      connect_size = connect_shape[1] * connect_shape[2] * connect_shape[3]
+      fc = tf.contrib.layers.fully_connected(
+        tf.reshape(drop, [-1, connect_size]), 1024,
+        weights_initializer=tf.variance_scaling_initializer())
+
+    with tf.name_scope('output'):
+      logits = tf.contrib.layers.fully_connected(fc, 10,
+        activation_fn=None,
+        weights_initializer=tf.variance_scaling_initializer())
+      outputs = tf.nn.softmax(logits, name='prediction')
     return logits, outputs
 
   def multiple_conv(self, inputs, size, ksize, multiple=1):
@@ -114,6 +170,12 @@ class MNIST(object):
       conv = tf.contrib.layers.conv2d(conv, size, stride=1, kernel_size=ksize,
         weights_initializer=tf.variance_scaling_initializer())
     return conv
+
+  def evaluate(self, prediction, label):
+    p = tf.argmax(prediction, axis=1)
+    l = tf.argmax(label, axis=1)
+    accuracy = tf.reduce_mean(tf.cast(tf.equal(p, l), tf.float32))
+    return accuracy
 
 
 def train(args):
@@ -141,6 +203,7 @@ def train(args):
     logger.info('initializing variables...')
     sess.run(tf.global_variables_initializer())
 
+    validation_index = 0
     logger.info('start training...')
     for epoch in range(args.max_epoches):
       # preprare data
@@ -149,12 +212,26 @@ def train(args):
       label_batch = training_label[offset:offset+args.batch_size, :]
 
       if epoch % args.display_epoches == 0:
-        loss = sess.run(model.loss, feed_dict={
-          model.input_images: data_batch,
-          model.labels: label_batch,
-          model.keep_prob: args.keep_prob,
-        })
-        logger.info('%d. loss: %f', epoch, loss)
+        offset = validation_index
+        to = validation_index + args.batch_size
+
+        validation_data_batch = validation_data[offset:to, :]
+        validation_label_batch = validation_label[offset:to, :]
+
+        loss, accuarcy, validation_accuracy = sess.run(
+          [model.loss, model.accuracy, model.validation_accuarcy],
+          feed_dict={
+            model.input_images: data_batch,
+            model.labels: label_batch,
+            model.validation_inputs: validation_data_batch,
+            model.validation_label: validation_label_batch,
+            model.keep_prob: args.keep_prob,
+          })
+        logger.info('%d. loss: %f, accuracy: %f, validation: %f',
+          epoch, loss, accuarcy, validation_accuracy)
+
+        validation_index = (validation_index +
+          args.batch_size) % (len(validation_data) - args.batch_size)
 
       # train
       sess.run(model.train_ops, feed_dict={
@@ -171,9 +248,15 @@ def train(args):
         summary = sess.run(model.summary, feed_dict={
           model.input_images: data_batch,
           model.labels: label_batch,
+          model.validation_inputs: validation_data_batch,
+          model.validation_label: validation_label_batch,
           model.keep_prob: 1.0,
         })
         summary_writer.add_summary(summary, global_step=epoch)
+
+      if epoch % args.decay_epoches == 0 and epoch != 0:
+        logger.info('decay learning rate...')
+        sess.run(model.decay_lr)
 
 
 def main():
