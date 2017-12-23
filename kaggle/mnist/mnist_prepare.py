@@ -124,6 +124,9 @@ class MNISTData(object):
   def get_validation_data(self):
     return self.validation_data, self.validation_label
 
+  def get_test_data(self):
+    return self.test_data, self.test_label
+
 class TestMNISTData(unittest.TestCase):
   def setUp(self):
     self.mnist_data = MNISTData('mnist.sqlite3')
