@@ -120,6 +120,7 @@ class MNISTData(object):
 
   def load_extra(self, extra_csv):
     if os.path.isfile(extra_csv):
+      logger.info('loading extra data from %s...', extra_csv)
       extra_data = []
       extra_label = []
       with open(extra_csv, 'r') as f:
