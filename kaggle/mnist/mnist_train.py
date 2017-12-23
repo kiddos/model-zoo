@@ -224,6 +224,12 @@ def train(args):
   training_data, training_label = mnist_data.get_training_data()
   validation_data, validation_label = mnist_data.get_validation_data()
 
+  if args.load_all == 'True':
+    mnist_data.load_extra(args.extra_csv)
+    training_data, training_label = mnist_data.get_training_data()
+    training_data = np.concatenate([training_data, validation_data], axis=0)
+    training_label = np.concatenate([training_label, validation_label], axis=0)
+
   train_size = len(training_data)
 
   model = MNIST(args.inference, learning_rate=args.learning_rate)
@@ -245,6 +251,10 @@ def train(args):
 
     validation_index = 0
     logger.info('start training...')
+    logger.info('training data: %s', str(training_data.shape))
+    logger.info('training label: %s', str(training_label.shape))
+
+    total_time = 0
     for epoch in range(args.max_epoches + 1):
       # preprare data
       offset = epoch % (train_size - args.batch_size)
@@ -273,12 +283,27 @@ def train(args):
         validation_index = (validation_index +
           args.batch_size) % (len(validation_data) - args.batch_size)
 
+        ave = total_time / (epoch + 1)
+        time_remaining = (args.max_epoches - epoch) * ave
+        days = int(time_remaining / 86400)
+        time_remaining %= 86400
+        hours = int(time_remaining / 3600)
+        time_remaining %= 3600
+        minutes = int(time_remaining / 60)
+        time_remaining %= 60
+        seconds = int(time_remaining)
+        logger.info('time remaining: %d days %d hours %d minutes %d seconds' %
+          (days, hours, minutes, seconds))
+
       # train
+      start_time = time.time()
       sess.run(model.train_ops, feed_dict={
         model.input_images: data_batch,
         model.labels: label_batch,
         model.keep_prob: args.keep_prob,
       })
+      passed = time.time() - start_time
+      total_time += passed
 
       if epoch % args.save_epoches == 0 and epoch != 0 and saving:
         logger.info('saving model...')
@@ -325,6 +350,11 @@ def main():
     type=int, help='batch size for training')
   parser.add_argument('--saving', dest='saving', default='False',
     type=str, help='save model')
+
+  parser.add_argument('--load-all', dest='load_all', default='False',
+    type=str, help='load all data')
+  parser.add_argument('--extra_csv', dest='extra_csv', default='train.csv',
+    type=str, help='extra training data to load')
   args = parser.parse_args()
 
   train(args)
