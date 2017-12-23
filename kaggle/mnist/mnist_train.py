@@ -161,6 +161,46 @@ class MNIST(object):
       outputs = tf.nn.softmax(logits, name='prediction')
     return logits, outputs
 
+  def inference_v2(self, inputs):
+    with tf.name_scope('conv1'):
+      conv = tf.contrib.layers.conv2d(inputs, 256, stride=1, kernel_size=7,
+        weights_initializer=tf.random_normal_initializer(stddev=0.05))
+
+    with tf.name_scope('conv2'):
+      conv = tf.contrib.layers.conv2d(conv, 256, stride=1, kernel_size=5,
+        weights_initializer=tf.variance_scaling_initializer())
+
+    with tf.name_scope('conv3'):
+      conv = tf.contrib.layers.conv2d(conv, 1024, stride=1, kernel_size=5,
+        weights_initializer=tf.variance_scaling_initializer())
+
+    with tf.name_scope('pool3'):
+      pool = tf.contrib.layers.max_pool2d(conv, 2)
+
+    with tf.name_scope('conv4'):
+      conv = tf.contrib.layers.conv2d(pool, 1024, stride=1, kernel_size=5,
+        weights_initializer=tf.variance_scaling_initializer())
+
+    with tf.name_scope('pool4'):
+      pool = tf.contrib.layers.max_pool2d(conv, 2)
+
+    with tf.name_scope('drop4'):
+      drop = tf.nn.dropout(pool, keep_prob=self.keep_prob)
+
+    with tf.name_scope('fully_connected'):
+      connect_shape = drop.get_shape().as_list()
+      connect_size = connect_shape[1] * connect_shape[2] * connect_shape[3]
+      fc = tf.contrib.layers.fully_connected(
+        tf.reshape(drop, [-1, connect_size]), 1024,
+        weights_initializer=tf.variance_scaling_initializer())
+
+    with tf.name_scope('output'):
+      logits = tf.contrib.layers.fully_connected(fc, 10,
+        activation_fn=None,
+        weights_initializer=tf.variance_scaling_initializer())
+      outputs = tf.nn.softmax(logits, name='prediction')
+    return logits, outputs
+
   def multiple_conv(self, inputs, size, ksize, multiple=1):
     conv = tf.contrib.layers.conv2d(inputs, size, stride=1, kernel_size=ksize,
       weights_initializer=tf.variance_scaling_initializer())
