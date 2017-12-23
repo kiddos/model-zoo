@@ -245,7 +245,7 @@ def train(args):
 
     validation_index = 0
     logger.info('start training...')
-    for epoch in range(args.max_epoches):
+    for epoch in range(args.max_epoches + 1):
       # preprare data
       offset = epoch % (train_size - args.batch_size)
       data_batch = training_data[offset:offset+args.batch_size, :]
