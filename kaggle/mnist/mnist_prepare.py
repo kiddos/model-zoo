@@ -118,6 +118,29 @@ class MNISTData(object):
       label.append(l)
     return np.array(data, dtype=np.uint8), np.array(label, dtype=np.uint8)
 
+  def load_extra(self, extra_csv):
+    if os.path.isfile(extra_csv):
+      extra_data = []
+      extra_label = []
+      with open(extra_csv, 'r') as f:
+        f.readline()
+
+        while True:
+          line = f.readline().strip()
+          if not line: break
+
+          raw_entry = line.split(',')
+          d = np.array([int(e) for e in raw_entry[1:]]).reshape([28, 28, 1])
+          l = [1 if int(raw_entry[0]) == i else 0 for i in range(10)]
+          extra_data.append(d)
+          extra_label.append(l)
+
+      self.training_data = np.concatenate([self.training_data, extra_data],
+        axis=0)
+      self.training_label = np.concatenate([self.training_label, extra_label],
+        axis=0)
+
+
   def get_training_data(self):
     return self.training_data, self.training_label
 
@@ -126,6 +149,7 @@ class MNISTData(object):
 
   def get_test_data(self):
     return self.test_data, self.test_label
+
 
 class TestMNISTData(unittest.TestCase):
   def setUp(self):
