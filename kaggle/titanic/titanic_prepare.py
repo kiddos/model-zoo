@@ -7,11 +7,90 @@ import numpy as np
 def remove_name(line):
   pattern = re.compile(r'\"(.+?)\"')
   found = pattern.findall(line)
-  name = found[0]
+  if found:
+    name = found[0]
+  else:
+    name = ''
   index = line.find(name)
   line = line[0: index] + line[index + len(name):]
   return line, name
 
+
+def process_entry(entry_txt, name, starting_index):
+  entry = []
+
+  # name
+  if name.find('Mr') == 0:
+    entry.append(1)
+    entry += [0, 1, 0, 0, 0]
+  elif name.find('Mrs') == 0:
+    entry.append(2)
+    entry += [0, 0, 1, 0, 0]
+  elif name.find('Miss') == 0:
+    entry.append(3)
+    entry += [0, 0, 0, 1, 0]
+  elif name.find('Master') == 0:
+    entry.append(4)
+    entry += [0, 0, 0, 0, 1]
+  else:
+    entry.append(0)
+    entry += [1, 0, 0, 0, 0]
+  # pclass
+  pclass = [0 for i in range(3)]
+  pclass[int(entry_txt[starting_index]) - 1] = 1
+  entry += pclass
+  entry.append(int(entry_txt[starting_index]))
+
+  # gender
+  if entry_txt[starting_index + 2] == 'male':
+    entry.append(1)
+  elif entry_txt[starting_index + 2] == 'female':
+    entry.append(0)
+
+  # age
+  if entry_txt[starting_index + 3]:
+    age = float(entry_txt[starting_index + 3])
+  else:
+    age = 0
+  entry.append(age)
+  if age < 14:
+    entry += [1, 0, 0]
+  elif age < 32:
+    entry += [0, 1, 0]
+  else:
+    entry += [0, 0, 1]
+
+  # siblings
+  entry.append(int(entry_txt[starting_index + 4]))
+  # parents
+  entry.append(int(entry_txt[starting_index + 5]))
+  # is alone
+  family_count = int(entry_txt[starting_index + 4]) + \
+    int(entry_txt[starting_index + 5])
+  if family_count == 0:
+    entry.append(1)
+  else:
+    entry.append(0)
+  #  # fare
+  if entry_txt[starting_index + 7] and entry_txt[starting_index + 7] != 'NA':
+    entry.append(float(entry_txt[starting_index + 7]))
+  else:
+    entry.append(0)
+
+  # embarked
+  if entry_txt[starting_index + 9] == 'C':
+    entry += [1, 0, 0]
+    entry.append(1)
+  elif entry_txt[starting_index + 9] == 'Q':
+    entry += [0, 1, 0]
+    entry.append(2)
+  elif entry_txt[starting_index + 9] == 'S':
+    entry += [0, 0, 1]
+    entry.append(3)
+  else:
+    entry += [0, 0, 0]
+    entry.append(0)
+  return entry
 
 def load_train_data(csv_file):
   data = []
@@ -23,33 +102,11 @@ def load_train_data(csv_file):
         line = f.readline()
         if not line: break
 
-        line, _ = remove_name(line.strip())
+        line, name = remove_name(line.strip())
 
         entry_txt = line.split(',')
-        entry = []
-        entry.append(int(entry_txt[2]))
-        if entry_txt[4] == 'male':
-          entry.append(1)
-        elif entry_txt[4] == 'female':
-          entry.append(0)
-        if entry_txt[5]:
-          entry.append(float(entry_txt[5]))
-        else:
-          entry.append(-1)
-        entry.append(int(entry_txt[6]))
-        entry.append(int(entry_txt[7]))
-        entry.append(float(entry_txt[9]))
+        entry = process_entry(entry_txt, name, 2)
 
-        if entry_txt[11] == 'C':
-          entry += [1, 0, 0]
-        elif entry_txt[11] == 'Q':
-          entry += [0, 1, 0]
-        elif entry_txt[11] == 'S':
-          entry += [0, 0, 1]
-        else:
-          entry += [0, 0, 0]
-
-        assert len(entry) == 9
         data.append(np.array(entry))
 
         if entry_txt[1] == '1':
@@ -68,35 +125,10 @@ def load_test_data(csv_file):
         line = f.readline()
         if not line: break
 
-        line, _ = remove_name(line.strip())
+        line, name = remove_name(line.strip())
 
         entry_txt = line.split(',')
-        entry = []
-        entry.append(int(entry_txt[1]))
-        if entry_txt[3] == 'male':
-          entry.append(1)
-        elif entry_txt[3] == 'female':
-          entry.append(0)
-
-        if entry_txt[4]:
-          entry.append(float(entry_txt[4]))
-        else:
-          entry.append(-1)
-        entry.append(int(entry_txt[5]))
-        entry.append(int(entry_txt[6]))
-
-        if entry_txt[8]:
-          entry.append(float(entry_txt[8]))
-        else:
-          entry.append(0.0)
-
-        if entry_txt[10] == 'C':
-          entry += [1, 0, 0]
-        elif entry_txt[10] == 'Q':
-          entry += [0, 1, 0]
-        elif entry_txt[10] == 'S':
-          entry += [0, 0, 1]
-
+        entry = process_entry(entry_txt, name, 1)
         data.append(entry)
   return np.array(data)
 
