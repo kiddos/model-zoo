@@ -1,0 +1,24 @@
+.canvas {
+  box-shadow: 0 0 5px #333;
+  display: block;
+}
+
+.result {
+  display: block;
+  box-shadow: 0 0 10px #333;
+  margin-top: 10px;
+}
+
+.button {
+  margin-top: 10px;
+  display: inline-block;
+  padding: 5px;
+  box-shadow: 0 3px 5px #333;
+  cursor: pointer;
+  transition: all 0.2s ease-in-out;
+}
+
+.button:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 6px 5px #333;
+}
