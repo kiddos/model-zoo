@@ -19,7 +19,12 @@ class CIFAR10Data(object):
     label = []
     for i in range(len(raw_data)):
       entry = raw_data[i]
-      img = np.frombuffer(entry[0], np.uint8).reshape([32, 32, 3])
+      img_data = np.frombuffer(entry[0], np.uint8)
+      img = np.zeros([32, 32, 3], np.uint8)
+      img[:, :, 0] = img_data[:1024].reshape([32, 32])
+      img[:, :, 1] = img_data[1024:2048].reshape([32, 32])
+      img[:, :, 2] = img_data[2048:].reshape([32, 32])
+
       l = np.array([1 if k == entry[1] else 0 for k in range(10)])
       data.append(img)
       label.append(l)
