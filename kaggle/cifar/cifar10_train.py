@@ -3,6 +3,7 @@ import numpy as np
 import sys
 import coloredlogs
 import logging
+import os
 from argparse import ArgumentParser
 
 from cifar10_data_util import CIFAR10Data
@@ -20,6 +21,7 @@ class CIFAR10Model(object):
       self._setup_inputs()
       tf.summary.image('input_images', self.input_images)
 
+    self.inference = inference
     if hasattr(self, inference):
       inference_fn = getattr(self, inference)
     else:
@@ -68,38 +70,44 @@ class CIFAR10Model(object):
 
   def inference_v0(self, inputs):
     with tf.name_scope('conv1'):
-      conv = tf.contrib.layers.conv2d(inputs, 16, stride=1, kernel_size=3,
-        weights_initializer=tf.random_normal_initializer(stddev=1.0))
+      conv = tf.contrib.layers.conv2d(inputs, 32, stride=1, kernel_size=3,
+        weights_initializer=tf.random_normal_initializer(stddev=0.16))
 
     with tf.name_scope('pool1'):
       pool = tf.contrib.layers.max_pool2d(conv, 2)
 
     with tf.name_scope('conv2'):
-      conv = self.multiple_conv(pool, 32)
+      conv = self.multiple_conv(pool, 64)
 
     with tf.name_scope('pool2'):
       pool = tf.contrib.layers.max_pool2d(conv, 2)
 
     with tf.name_scope('conv3'):
-      conv = self.multiple_conv(pool, 64)
+      conv = self.multiple_conv(pool, 128)
 
     with tf.name_scope('pool3'):
       pool = tf.contrib.layers.max_pool2d(conv, 2)
 
     with tf.name_scope('conv3'):
-      conv = self.multiple_conv(pool, 128, ksize=1)
+      conv = self.multiple_conv(pool, 256, ksize=1)
 
     with tf.name_scope('pool4'):
       pool = tf.contrib.layers.max_pool2d(conv, 2)
 
     with tf.name_scope('conv5'):
-      conv = self.multiple_conv(pool, 256, ksize=1)
+      conv = self.multiple_conv(pool, 512, ksize=1)
 
     with tf.name_scope('pool5'):
       pool = tf.contrib.layers.max_pool2d(conv, 2)
 
+    with tf.name_scope('conv6'):
+      conv = self.multiple_conv(pool, 1024, ksize=1)
+
+    with tf.name_scope('drop6'):
+      drop = tf.nn.dropout(pool, keep_prob=self.keep_prob)
+
     with tf.name_scope('output'):
-      logits = tf.contrib.layers.conv2d(pool, 10, stride=1, kernel_size=1,
+      logits = tf.contrib.layers.conv2d(drop, 10, stride=1, kernel_size=1,
         activation_fn=None,
         weights_initializer=tf.variance_scaling_initializer())
       logits = tf.reshape(logits, [-1, 10], name='logits')
@@ -124,16 +132,37 @@ class CIFAR10Model(object):
     l = tf.argmax(labels, axis=1)
     return tf.reduce_mean(tf.cast(tf.equal(p, l), tf.float32))
 
+  def prepare_folder(self):
+    index = 0
+    folder = 'cifar10_%s_%d' % (self.inference, index)
+    while os.path.isdir(folder):
+      index += 1
+      folder = 'cifar10_%s_%d' % (self.inference, index)
+    os.mkdir(folder)
+    return folder
+
 
 def train(args):
   logger.info('setting up models...')
-  model = CIFAR10Model(args.inference)
+  model = CIFAR10Model(args.inference, learning_rate=args.learning_rate)
 
   logger.info('preparing cifar10 data...')
   cifar10_data = CIFAR10Data(args.dbname)
   training_data, training_label = cifar10_data.get_training_data()
   valid_data, valid_label = cifar10_data.get_validation_data()
   #  test_data, test_lable = cifar10_data.get_test_data()
+
+  logger.info('training data: %s', str(training_data.shape))
+  logger.info('validation data: %s', str(valid_data.shape))
+
+  saving = (args.saving == 'True')
+
+  if saving:
+    folder = model.prepare_folder()
+    checkpoint = os.path.join(folder, 'cifar10')
+    saver = tf.train.Saver()
+    summary_writer = tf.summary.FileWriter(os.path.join(folder, 'summary'),
+      tf.get_default_graph())
 
   config = tf.ConfigProto()
   config.gpu_options.allow_growth = True
@@ -175,6 +204,19 @@ def train(args):
         model.labels: training_label_batch,
         model.keep_prob: args.keep_prob,
       })
+
+      if epoch % args.save_epoches == 0 and epoch != 0 and saving:
+        saver.save(sess, checkpoint, global_step=epoch)
+
+      if epoch % args.summary_epoches == 0 and epoch != 0 and saving:
+        summary = sess.run(model.summary, feed_dict={
+          model.input_images: training_data_batch,
+          model.labels: training_label_batch,
+          model.validation_images: valid_data_batch,
+          model.validation_labels: valid_label_batch,
+          model.keep_prob: 1.0
+        })
+        summary_writer.add_summary(summary, global_step=epoch)
 
 
 def main():
