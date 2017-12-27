@@ -18,7 +18,8 @@ logger.setLevel(logging.INFO)
 
 class YOLOFace(object):
   def __init__(self, input_size, output_size, inference,
-      lambda_coord=1.0, lambda_size=10.0, lambda_no_obj=0.86, learning_rate=1e-4):
+      lambda_coord=1.0, lambda_size=10.0, lambda_no_obj=0.86,
+      learning_rate=1e-4, noise=True):
     self.input_size = input_size
     self.output_size = output_size
     self.output_channel = 1 * 5
@@ -36,8 +37,11 @@ class YOLOFace(object):
     self._setup_inputs()
 
     with tf.variable_scope('yolo'):
-      preprocessed = self.preprocess_inputs(self.input_images)
-      logits = self.inference_func(preprocessed)
+      if noise:
+        preprocessed = self.preprocess_inputs(self.input_images)
+        logits = self.inference_func(preprocessed)
+      else:
+        logits = self.inference_func(self.input_images)
       ind, coord, s = tf.split(logits, [1, 2, 2], axis=3)
 
       tf.summary.image('input_images', self.input_images)
@@ -531,7 +535,8 @@ def train(args):
     lambda_coord=args.lambda_coord,
     lambda_size=args.lambda_size,
     lambda_no_obj=args.lambda_no_obj,
-    learning_rate=args.learning_rate)
+    learning_rate=args.learning_rate,
+    noise=(args.noise == 'True'))
 
   if args.saving == 'True':
     folder = yolo.prepare_folder()
@@ -697,6 +702,8 @@ def main():
     default='train', help='mode to run')
 
   # training parameters
+  parser.add_argument('--noise', dest='noise',
+    default='True', help='add noise')
   parser.add_argument('--learning-rate', dest='learning_rate', type=float,
     default=1e-3, help='learning rate for training')
   parser.add_argument('--lambda-coord', dest='lambda_coord', type=float,
