@@ -88,7 +88,7 @@ def run(graph, output_node_name, threshold, padding=20):
           cv2.imshow('Image', cv2.resize(cv2.cvtColor(img, cv2.COLOR_RGB2BGR),
             (512, 512)))
 
-          key = cv2.waitKey(10)
+          key = cv2.waitKey(20)
           if key == ord('q'):
             break
     except Exception as e:
