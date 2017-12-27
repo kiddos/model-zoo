@@ -40,12 +40,12 @@ class YOLOFace(object):
       if noise:
         preprocessed = self.preprocess_inputs(self.input_images)
         logits = self.inference_func(preprocessed)
+        tf.summary.image('preprocessed_input_images', preprocessed)
       else:
         logits = self.inference_func(self.input_images)
       ind, coord, s = tf.split(logits, [1, 2, 2], axis=3)
 
       tf.summary.image('input_images', self.input_images)
-      tf.summary.image('preprocessed_input_images', preprocessed)
 
     # outputs
     with tf.variable_scope('yolo', reuse=True):
