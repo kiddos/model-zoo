@@ -4,9 +4,10 @@ import unittest
 
 
 class CIFAR10Data(object):
-  def __init__(self, dbname):
+  def __init__(self, dbname, percent=0.9):
     self.connection = sqlite3.connect(dbname)
     self.cursor = self.connection.cursor()
+    self.percent = percent
 
     self._load()
 
@@ -25,10 +26,27 @@ class CIFAR10Data(object):
     return np.array(data), np.array(label)
 
   def _load(self):
-    self.training_data, self.training_label = \
-      self._load_from_table('cifar10_train')
+    self.data, self.label = self._load_from_table('cifar10_train')
     self.test_data, self.test_label = \
       self._load_from_table('cifar10_test')
+
+    index = np.random.permutation(np.arange(len(self.data)))
+    training_size = int(self.percent * len(self.data))
+    training_index = index[:training_size]
+    validation_index = index[training_size:]
+    self.training_data = self.data[training_index, :]
+    self.training_label = self.label[training_index, :]
+    self.valid_data = self.data[validation_index, :]
+    self.valid_label = self.label[validation_index, :]
+
+  def get_training_data(self):
+    return self.training_data, self.training_label
+
+  def get_validation_data(self):
+    return self.valid_data, self.valid_label
+
+  def get_test_data(self):
+    return self.test_data, self.test_label
 
 
 class TestCIFAR10Data(unittest.TestCase):
