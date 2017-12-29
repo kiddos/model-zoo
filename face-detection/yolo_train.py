@@ -114,14 +114,11 @@ class YOLOFace(object):
       #      self.lambda_size * self.size_loss
 
       self.loss = \
-          self.ind_loss / indicator_sigma + \
-          tf.log(indicator_sigma) + \
-          self.no_obj_loss / no_obj_sigma + \
-          tf.log(no_obj_sigma) + \
-          self.coord_loss / coord_sigma + \
-          tf.log(coord_sigma) + \
-          self.size_loss / size_sigma + \
-          tf.log(size_sigma)
+          self.ind_loss / indicator_sigma / 2.0 + \
+          self.no_obj_loss / no_obj_sigma / 2.0 + \
+          self.coord_loss / coord_sigma / 2.0 + \
+          self.size_loss / size_sigma / 2.0 + \
+          tf.log(indicator_sigma * no_obj_sigma * coord_sigma * size_sigma)
       tf.summary.scalar('loss', self.loss)
 
     with tf.name_scope('optimization'):
