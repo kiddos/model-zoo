@@ -436,32 +436,39 @@ class YOLOFace(object):
   def inference_v6(self, inputs):
     ksize = 3
     with tf.name_scope('conv1'):
-      conv = tf.contrib.layers.conv2d(inputs, 8, stride=1, kernel_size=ksize,
+      conv = tf.contrib.layers.conv2d(inputs, 16, stride=1, kernel_size=ksize,
         weights_initializer=tf.random_normal_initializer(stddev=0.0006))
 
     with tf.name_scope('pool1'):
       pool = tf.contrib.layers.max_pool2d(conv, 2)
 
     with tf.name_scope('conv2'):
-      conv = self.multiple_conv(16, ksize, pool, multiple=2)
+      conv = tf.contrib.layers.conv2d(pool, 32, stride=1, kernel_size=ksize,
+        weights_initializer=tf.variance_scaling_initializer())
 
     with tf.name_scope('pool2'):
       pool = tf.contrib.layers.max_pool2d(conv, 2)
 
     with tf.name_scope('conv3'):
-      conv = self.multiple_conv(64, ksize, pool, multiple=3)
+      conv = self.multiple_conv(64, ksize, pool, multiple=1)
 
     with tf.name_scope('pool3'):
       pool = tf.contrib.layers.max_pool2d(conv, 2)
 
     with tf.name_scope('conv4'):
-      conv = self.multiple_conv(128, ksize, pool, multiple=3)
+      conv = self.multiple_conv(128, ksize, pool)
 
     with tf.name_scope('pool4'):
       pool = tf.contrib.layers.max_pool2d(conv, 2)
 
     with tf.name_scope('conv5'):
-      conv = self.multiple_conv(256, ksize, pool, multiple=6)
+      conv = self.multiple_conv(256, ksize, pool)
+
+    with tf.name_scope('pool5'):
+      pool = tf.contrib.layers.max_pool2d(conv, 2)
+
+    with tf.name_scope('conv6'):
+      conv = self.multiple_conv(512, ksize, pool)
 
     with tf.name_scope('drop5'):
       drop = tf.nn.dropout(conv, keep_prob=self.keep_prob)
@@ -565,6 +572,13 @@ def train(args):
 
       training_data_batch = training_data[offset:to, :]
       training_label_batch = training_label[offset:to, :]
+
+      if epoch == 0:
+        prediction = sess.run(yolo.output, feed_dict={
+          yolo.input_images: training_data_batch,
+          yolo.label_grids: training_label_batch,
+        })
+        logger.info('prediction stddev: %s', str(np.std(prediction, axis=3)))
 
       if epoch % args.display_epoches == 0:
         offset = valid_index
