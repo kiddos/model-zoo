@@ -262,12 +262,13 @@ def run_episode(args, env):
 
       step += 1
 
-    epsilon *= 0.99
     if not trainer.running:
       break
 
     if episode % args.update_frequency == 0 and episode != 0:
       trainer.update_target()
+    if episode % args.decay_epsilon == 0 and episode != 0:
+      epsilon *= 0.9
 
 
 def main():
@@ -280,10 +281,12 @@ def main():
   parser.add_argument('--max-episodes', dest='max_episodes', type=int,
     default=10000, help='max episode to run')
   parser.add_argument('--update-frequency', dest='update_frequency',
-    type=int, default=10, help='update target vars per episode')
+    type=int, default=50, help='update target vars per episode')
+  parser.add_argument('--decay-epsilon', dest='decay_epsilon',
+    type=int, default=10, help='decay epsilon for epsilon greedy policy')
 
   parser.add_argument('--learning-rate', dest='learning_rate', type=float,
-    default=1e-2, help='learning rate for training')
+    default=1e-3, help='learning rate for training')
   parser.add_argument('--batch-size', dest='batch_size', type=int,
     default=32, help='batch size for training')
   parser.add_argument('--max-epoches', dest='max_epoches', type=int,
