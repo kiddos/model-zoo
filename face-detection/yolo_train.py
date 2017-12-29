@@ -17,9 +17,9 @@ logger = logging.getLogger('yolo')
 logger.setLevel(logging.INFO)
 
 
-def compute_std(inputs, axis):
-  mean = tf.reduce_mean(inputs, axis=axis, keep_dims=True)
-  deviation_squared = tf.reduce_mean(tf.square(inputs - mean), axis=axis)
+def compute_std(inputs):
+  mean = tf.reduce_mean(inputs, keep_dims=True)
+  deviation_squared = tf.reduce_mean(tf.square(inputs - mean))
   return tf.sqrt(deviation_squared)
 
 
@@ -71,7 +71,7 @@ class YOLOFace(object):
 
       num_obj = tf.reduce_sum(indicator)
       with tf.name_scope('indicator'):
-        indicator_sigma = compute_std(tf.reshape(ind, [-1, 1]), axis=0)
+        indicator_sigma = compute_std(ind)
 
         indicator_error = ind - indicator
         no_obj = 1.0 - indicator
@@ -86,7 +86,7 @@ class YOLOFace(object):
         tf.summary.scalar('indicator_variance', indicator_sigma)
 
       with tf.name_scope('coordinate'):
-        coord_sigma = compute_std(tf.reshape(coord, [-1, 2]), axis=0)
+        coord_sigma = compute_std(coord)
 
         coord_error = coord - coordinate
         #  self.coord_loss = tf.reduce_sum(
@@ -101,7 +101,7 @@ class YOLOFace(object):
         tf.summary.scalar('coordinate_variance', coord_sigma)
 
       with tf.name_scope('size'):
-        size_sigma = compute_std(tf.reshape(s, [-1, 2]), axis=0)
+        size_sigma = compute_std(s)
 
         size_error = s - size
         #  self.size_loss = tf.reduce_sum(
@@ -111,6 +111,7 @@ class YOLOFace(object):
         tf.summary.scalar('size_loss', self.size_loss)
         tf.summary.scalar('size_error',
           tf.reduce_sum(indicator * tf.abs(size_error)) / num_obj)
+        print(size_sigma)
 
         tf.summary.scalar('size_variance', size_sigma)
 
