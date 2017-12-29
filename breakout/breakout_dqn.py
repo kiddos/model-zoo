@@ -6,6 +6,7 @@ import coloredlogs
 import logging
 import threading
 import signal
+import os
 from collections import deque
 from argparse import ArgumentParser
 
@@ -121,12 +122,22 @@ def epsilon_greedy(q_values, epsilon):
 
 class Trainer(object):
   def __init__(self, args):
-    self.dqn = DQN()
     self.replay_buffer = deque()
     self.max_epoches = args.max_epoches
     self.batch_size = args.batch_size
     self.display_epoches = args.display_epoches
+    self.save_epoches = args.save_epoches
     self.replay_buffer_size = args.replay_buffer_size
+
+    if args.saving == 'True':
+      logger.info('saving model...')
+      self.saving = True
+      if not os.path.isdir('dqn'):
+        os.mkdir('dqn')
+      self.checkpoint = os.path.join('dqn', 'dqn')
+
+    self.dqn = DQN()
+    self.saver = tf.train.Saver()
 
     config = tf.ConfigProto()
     config.gpu_options.allow_growth = True
@@ -163,8 +174,13 @@ class Trainer(object):
         logger.info('%d. loss: %f, max Q: %f',
           epoch, loss, np.max(q_values))
 
+      if epoch % self.save_epoches == 0 and epoch != 0 and self.saving:
+        logger.info('saving model...')
+        self.saver.save(self.sess, self.checkpoint, global_step=epoch)
+
       if not self.running:
         break
+
     logger.info('training session stop')
     logger.info('closing session...')
     self.sess.close()
@@ -202,12 +218,8 @@ def run_episode(args, env):
     while True:
       action_prob = trainer.predict_action(state)
       action = epsilon_greedy(action_prob, epsilon)
-      next_state, reward, done, _ = env.step(action)
-      #  if reward:
-      #    reward = 100
-      #  else:
-      #    reward = 1
 
+      next_state, reward, done, _ = env.step(action)
       trainer.add_step([state, action, next_state, reward, done])
 
       if args.render == 'True':
@@ -218,11 +230,9 @@ def run_episode(args, env):
           episode, step, epsilon)
         break
 
-      if episode % 10 == 0 and episode != 0:
-        epsilon *= 0.9
-
       step += 1
 
+    epsilon *= 0.9
     if not trainer.running:
       break
 
