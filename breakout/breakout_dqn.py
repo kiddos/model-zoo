@@ -68,7 +68,7 @@ class DQN(object):
 
   def inference(self, inputs, trainable=True):
     with tf.name_scope('conv1'):
-      conv = tf.contrib.layers.conv2d(inputs, 4, stride=1, kernel_size=3,
+      conv = tf.contrib.layers.conv2d(inputs, 32, stride=1, kernel_size=3,
         trainable=trainable,
         weights_initializer=tf.random_normal_initializer(stddev=0.06))
 
@@ -76,7 +76,7 @@ class DQN(object):
       pool = tf.contrib.layers.max_pool2d(conv, 2)
 
     with tf.name_scope('conv2'):
-      conv = tf.contrib.layers.conv2d(pool, 8, stride=1, kernel_size=3,
+      conv = tf.contrib.layers.conv2d(pool, 64, stride=1, kernel_size=3,
         trainable=trainable,
         weights_initializer=tf.variance_scaling_initializer())
 
@@ -84,7 +84,7 @@ class DQN(object):
       pool = tf.contrib.layers.max_pool2d(conv, 2)
 
     with tf.name_scope('conv3'):
-      conv = tf.contrib.layers.conv2d(pool, 16, stride=1, kernel_size=3,
+      conv = tf.contrib.layers.conv2d(pool, 128, stride=1, kernel_size=3,
         trainable=trainable,
         weights_initializer=tf.variance_scaling_initializer())
 
@@ -92,18 +92,28 @@ class DQN(object):
       pool = tf.contrib.layers.max_pool2d(conv, 2)
 
     with tf.name_scope('conv4'):
-      conv = tf.contrib.layers.conv2d(pool, 32, stride=1, kernel_size=3,
+      conv = tf.contrib.layers.conv2d(pool, 256, stride=1, kernel_size=3,
         trainable=trainable,
         weights_initializer=tf.variance_scaling_initializer())
 
     with tf.name_scope('pool4'):
       pool = tf.contrib.layers.max_pool2d(conv, 2)
 
+    with tf.name_scope('conv5'):
+      conv = tf.contrib.layers.conv2d(pool, 64, stride=1, kernel_size=3,
+        trainable=trainable,
+        weights_initializer=tf.variance_scaling_initializer())
+
+    with tf.name_scope('conv6'):
+      conv = tf.contrib.layers.conv2d(pool, 16, stride=1, kernel_size=3,
+        trainable=trainable,
+        weights_initializer=tf.variance_scaling_initializer())
+
     with tf.name_scope('fully_connected'):
-      connect_shape = pool.get_shape().as_list()
+      connect_shape = conv.get_shape().as_list()
       connect_size = connect_shape[1] * connect_shape[2] * connect_shape[3]
       fc = tf.contrib.layers.fully_connected(
-        tf.reshape(pool, [-1, connect_size]), 32, trainable=trainable,
+        tf.reshape(conv, [-1, connect_size]), 16, trainable=trainable,
         weights_initializer=tf.variance_scaling_initializer())
 
     with tf.name_scope('output'):
@@ -193,6 +203,12 @@ class Trainer(object):
         })
         logger.info('%d. loss: %f, max Q: %f',
           epoch, loss, np.max(q_values))
+
+      if epoch == 0:
+        next_q_values = self.sess.run(self.dqn.next_q_values, feed_dict={
+          self.dqn.next_state: state_batch
+        })
+        logger.info('q values stddev: %s', str(np.std(next_q_values, axis=0)))
 
       if epoch % self.save_epoches == 0 and epoch != 0 and self.saving:
         logger.info('saving model...')
