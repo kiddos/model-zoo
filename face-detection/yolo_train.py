@@ -16,13 +16,6 @@ logging.basicConfig()
 logger = logging.getLogger('yolo')
 logger.setLevel(logging.INFO)
 
-
-def compute_std(inputs):
-  mean = tf.reduce_mean(inputs, keep_dims=True)
-  deviation_squared = tf.reduce_mean(tf.square(inputs - mean))
-  return tf.sqrt(deviation_squared)
-
-
 class YOLOFace(object):
   def __init__(self, input_size, output_size, inference,
       lambda_coord=1.0, lambda_size=10.0, lambda_no_obj=0.86,
@@ -71,8 +64,6 @@ class YOLOFace(object):
 
       num_obj = tf.reduce_sum(indicator)
       with tf.name_scope('indicator'):
-        indicator_sigma = compute_std(ind)
-
         indicator_error = ind - indicator
         no_obj = 1.0 - indicator
         num_empty_grid = tf.reduce_sum(no_obj)
@@ -82,11 +73,7 @@ class YOLOFace(object):
         tf.summary.scalar('indicator_loss', self.ind_loss)
         tf.summary.scalar('no_obj_loss', self.no_obj_loss)
 
-        tf.summary.scalar('indicator_variance', indicator_sigma)
-
       with tf.name_scope('coordinate'):
-        coord_sigma = compute_std(coord)
-
         coord_error = coord - coordinate
         self.coord_loss = tf.reduce_sum(
           indicator * tf.square(coord_error)) / num_obj
@@ -95,11 +82,7 @@ class YOLOFace(object):
         tf.summary.scalar('coord_error',
           tf.reduce_sum(indicator * tf.abs(coord_error)) / num_obj)
 
-        tf.summary.scalar('coordinate_variance', coord_sigma)
-
       with tf.name_scope('size'):
-        size_sigma = compute_std(s)
-
         size_error = s - size
         self.size_loss = tf.reduce_sum(
           indicator * tf.square(size_error)) / num_obj
@@ -107,21 +90,10 @@ class YOLOFace(object):
         tf.summary.scalar('size_error',
           tf.reduce_sum(indicator * tf.abs(size_error)) / num_obj)
 
-        tf.summary.scalar('size_variance', size_sigma)
-
-      #  self.loss = \
-      #      self.ind_loss + \
-      #      self.lambda_no_obj * self.no_obj_loss + \
-      #      self.lambda_coord * self.coord_loss + \
-      #      self.lambda_size * self.size_loss
-
-      self.loss = \
-          self.ind_loss / indicator_sigma + \
-          self.no_obj_loss / indicator_sigma + \
-          self.coord_loss / coord_sigma + \
-          self.size_loss / size_sigma + \
-          tf.log(tf.reduce_prod(indicator_sigma) *
-            tf.reduce_prod(coord_sigma) * tf.reduce_prod(size_sigma))
+      self.loss = self.ind_loss + \
+          self.lambda_no_obj * self.no_obj_loss + \
+          self.lambda_coord * self.coord_loss + \
+          self.lambda_size * self.size_loss
       tf.summary.scalar('loss', self.loss)
 
     with tf.name_scope('optimization'):
