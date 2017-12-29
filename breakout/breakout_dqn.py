@@ -4,6 +4,8 @@ import gym
 import random
 import coloredlogs
 import logging
+import threading
+import signal
 from collections import deque
 from argparse import ArgumentParser
 
@@ -54,28 +56,28 @@ class DQN(object):
 
   def inference(self, inputs):
     with tf.name_scope('conv1'):
-      conv = tf.contrib.layers.conv2d(inputs, 4, stride=1, kernel_size=3,
+      conv = tf.contrib.layers.conv2d(inputs, 16, stride=1, kernel_size=3,
         weights_initializer=tf.random_normal_initializer(stddev=0.04))
 
     with tf.name_scope('pool1'):
       pool = tf.contrib.layers.max_pool2d(conv, 2)
 
     with tf.name_scope('conv2'):
-      conv = tf.contrib.layers.conv2d(pool, 8, stride=1, kernel_size=3,
+      conv = tf.contrib.layers.conv2d(pool, 32, stride=1, kernel_size=3,
         weights_initializer=tf.variance_scaling_initializer())
 
     with tf.name_scope('pool2'):
       pool = tf.contrib.layers.max_pool2d(conv, 2)
 
     with tf.name_scope('conv3'):
-      conv = tf.contrib.layers.conv2d(pool, 16, stride=1, kernel_size=3,
+      conv = tf.contrib.layers.conv2d(pool, 64, stride=1, kernel_size=3,
         weights_initializer=tf.variance_scaling_initializer())
 
     with tf.name_scope('pool3'):
       pool = tf.contrib.layers.max_pool2d(conv, 2)
 
     with tf.name_scope('conv4'):
-      conv = tf.contrib.layers.conv2d(pool, 32, stride=1, kernel_size=3,
+      conv = tf.contrib.layers.conv2d(pool, 128, stride=1, kernel_size=3,
         weights_initializer=tf.variance_scaling_initializer())
 
     with tf.name_scope('pool4'):
@@ -117,54 +119,114 @@ def epsilon_greedy(q_values, epsilon):
   return np.random.choice(np.arange(4), p=prob)
 
 
+class Trainer(object):
+  def __init__(self, args):
+    self.dqn = DQN()
+    self.replay_buffer = deque()
+    self.max_epoches = args.max_epoches
+    self.batch_size = args.batch_size
+    self.display_epoches = args.display_epoches
+    self.replay_buffer_size = args.replay_buffer_size
+
+    config = tf.ConfigProto()
+    config.gpu_options.allow_growth = True
+    self.sess = tf.Session(config=config)
+    logger.info('initializing variables...')
+    self.sess.run(tf.global_variables_initializer())
+    self.running = True
+
+  def __del__(self):
+    self.running = False
+
+  def train(self):
+    logger.info('waiting for batch...')
+    while len(self.replay_buffer) < self.batch_size:
+      pass
+
+    logger.info('start training...')
+    for epoch in range(self.max_epoches + 1):
+      batch = random.sample(self.replay_buffer, self.batch_size)
+      state_batch = np.array([b[0] for b in batch])
+      action_batch = np.array([[1 if i == b[1] else 0 for i in range(4)]
+        for b in batch])
+      next_state_batch = np.array([b[2] for b in batch])
+      reward_batch = np.array([b[3] for b in batch])
+      done_batch = np.array([b[4] for b in batch])
+
+      loss = self.dqn.train(self.sess,
+        state_batch, action_batch, next_state_batch,
+        reward_batch, done_batch)
+      if epoch % self.display_epoches == 0:
+        q_values = self.sess.run(self.dqn.q_values, feed_dict={
+          self.dqn.state: state_batch
+        })
+        logger.info('%d episode, loss: %f, max Q: %f',
+          epoch, loss, np.max(q_values))
+
+      if not self.running:
+        break
+    logger.info('training session stop')
+    logger.info('closing session...')
+    self.sess.close()
+
+  def add_step(self, step):
+    self.replay_buffer.append(step)
+
+    if len(self.replay_buffer) > self.replay_buffer_size:
+      self.replay_buffer.pop()
+
+  def start(self):
+    self.task = threading.Thread(target=self.train)
+    self.task.start()
+
+  def predict_action(self, state):
+    if self.running:
+      return self.dqn.get_action(self.sess, state)
+    else:
+      return 0
+
+
 def run_episode(args, env):
-  dqn = DQN()
-  replay_buffer = deque()
+  trainer = Trainer(args)
+  trainer.start()
 
-  config = tf.ConfigProto()
-  config.gpu_options.allow_growth = True
-  with tf.Session() as sess:
-    sess.run(tf.global_variables_initializer())
+  def stop(signum, frame):
+    logger.info('stopping...')
+    trainer.running = False
+  signal.signal(signal.SIGINT, stop)
 
-    epsilon = 0.9
-    for episode in range(args.max_episodes + 1):
-      state = env.reset()
-      step = 0
-      while True:
-        action_prob = dqn.get_action(sess, state)
-        action = epsilon_greedy(action_prob, epsilon)
-        next_state, reward, done, _ = env.step(action)
+  epsilon = 0.9
+  for episode in range(args.max_episodes + 1):
+    state = env.reset()
+    step = 0
+    while True:
+      action_prob = trainer.predict_action(state)
+      action = epsilon_greedy(action_prob, epsilon)
+      next_state, reward, done, _ = env.step(action)
+      if reward:
+        reward = 100
+      else:
+        reward = 1
 
-        replay_buffer.append([state, action, next_state, reward, done])
+      trainer.add_step([state, action, next_state, reward, done])
 
-        if len(replay_buffer) > args.batch_size:
-          batch = random.sample(replay_buffer, args.batch_size)
-          state_batch = np.array([b[0] for b in batch])
-          action_batch = np.array([[1 if i == b[1] else 0 for i in range(4)]
-            for b in batch])
-          next_state_batch = np.array([b[2] for b in batch])
-          reward_batch = np.array([b[3] for b in batch])
-          done_batch = np.array([b[4] for b in batch])
+      if args.render == 'True':
+        env.render()
+      state = next_state
+      if done:
+        logger.info('final step: %d', step)
+        break
 
-          loss = dqn.train(sess, state_batch, action_batch, next_state_batch,
-            reward_batch, done_batch)
+      step += 1
 
-          #  if episode % 10 == 0:
-          logger.info('%d episode, loss: %f, step: %d', episode, loss, step)
-
-        if len(replay_buffer) > args.replay_buffer_size:
-          replay_buffer.pop()
-
-        state = next_state
-        if done:
-          logger.info('final step: %d', step)
-          break
-
-        step += 1
+    if not trainer.running:
+      break
 
 
 def main():
   parser = ArgumentParser()
+  parser.add_argument('--render', dest='render', default='True',
+    help='render')
   parser.add_argument('--replay-buffer-size', dest='replay_buffer_size',
     type=int, default=20000, help='max replay buffer size')
   parser.add_argument('--learning-rate', dest='learning_rate', type=float,
@@ -172,7 +234,9 @@ def main():
   parser.add_argument('--batch-size', dest='batch_size', type=int,
     default=16, help='batch size for training')
   parser.add_argument('--max-episodes', dest='max_episodes', type=int,
-    default=100000, help='max episode to run')
+    default=10000, help='max episode to run')
+  parser.add_argument('--max-epoches', dest='max_epoches', type=int,
+    default=200000, help='max epoches to train model')
   parser.add_argument('--display-epoches', dest='display_epoches', type=int,
     default=10, help='epoches to display training result')
   parser.add_argument('--save-epoches', dest='save_epoches', type=int,
