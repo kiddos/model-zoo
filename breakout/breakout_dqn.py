@@ -57,7 +57,7 @@ class DQN(object):
   def inference(self, inputs):
     with tf.name_scope('conv1'):
       conv = tf.contrib.layers.conv2d(inputs, 16, stride=1, kernel_size=3,
-        weights_initializer=tf.random_normal_initializer(stddev=0.04))
+        weights_initializer=tf.random_normal_initializer(stddev=0.004))
 
     with tf.name_scope('pool1'):
       pool = tf.contrib.layers.max_pool2d(conv, 2)
@@ -160,7 +160,7 @@ class Trainer(object):
         q_values = self.sess.run(self.dqn.q_values, feed_dict={
           self.dqn.state: state_batch
         })
-        logger.info('%d episode, loss: %f, max Q: %f',
+        logger.info('%d. loss: %f, max Q: %f',
           epoch, loss, np.max(q_values))
 
       if not self.running:
@@ -195,7 +195,7 @@ def run_episode(args, env):
     trainer.running = False
   signal.signal(signal.SIGINT, stop)
 
-  epsilon = 0.9
+  epsilon = 0.6
   for episode in range(args.max_episodes + 1):
     state = env.reset()
     step = 0
@@ -203,10 +203,10 @@ def run_episode(args, env):
       action_prob = trainer.predict_action(state)
       action = epsilon_greedy(action_prob, epsilon)
       next_state, reward, done, _ = env.step(action)
-      if reward:
-        reward = 100
-      else:
-        reward = 1
+      #  if reward:
+      #    reward = 100
+      #  else:
+      #    reward = 1
 
       trainer.add_step([state, action, next_state, reward, done])
 
@@ -214,8 +214,12 @@ def run_episode(args, env):
         env.render()
       state = next_state
       if done:
-        logger.info('final step: %d', step)
+        logger.info('%d. episode, final step: %d, epsilon: %f',
+          episode, step, epsilon)
         break
+
+      if episode % 10 == 0 and episode != 0:
+        epsilon *= 0.9
 
       step += 1
 
