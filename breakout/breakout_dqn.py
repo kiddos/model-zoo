@@ -7,6 +7,7 @@ import logging
 import threading
 import signal
 import os
+import sys
 from collections import deque
 from argparse import ArgumentParser
 
@@ -31,7 +32,8 @@ class DQN(object):
     tf.summary.histogram('next_q_values', next_q_values)
 
     with tf.name_scope('loss'):
-      target = self.reward + tf.cast(tf.logical_not(self.done), tf.float32) * \
+      target = self.reward + 0.9 * \
+        tf.cast(tf.logical_not(self.done), tf.float32) * \
         tf.reduce_sum(next_q_values * self.action_mask, axis=1)
       y = tf.reduce_sum(q_values * self.action_mask)
       self.loss = tf.reduce_mean(tf.square(y - target))
@@ -57,28 +59,28 @@ class DQN(object):
 
   def inference(self, inputs):
     with tf.name_scope('conv1'):
-      conv = tf.contrib.layers.conv2d(inputs, 16, stride=1, kernel_size=3,
-        weights_initializer=tf.random_normal_initializer(stddev=0.004))
+      conv = tf.contrib.layers.conv2d(inputs, 4, stride=1, kernel_size=3,
+        weights_initializer=tf.random_normal_initializer(stddev=0.04))
 
     with tf.name_scope('pool1'):
       pool = tf.contrib.layers.max_pool2d(conv, 2)
 
     with tf.name_scope('conv2'):
-      conv = tf.contrib.layers.conv2d(pool, 32, stride=1, kernel_size=3,
+      conv = tf.contrib.layers.conv2d(pool, 8, stride=1, kernel_size=3,
         weights_initializer=tf.variance_scaling_initializer())
 
     with tf.name_scope('pool2'):
       pool = tf.contrib.layers.max_pool2d(conv, 2)
 
     with tf.name_scope('conv3'):
-      conv = tf.contrib.layers.conv2d(pool, 64, stride=1, kernel_size=3,
+      conv = tf.contrib.layers.conv2d(pool, 16, stride=1, kernel_size=3,
         weights_initializer=tf.variance_scaling_initializer())
 
     with tf.name_scope('pool3'):
       pool = tf.contrib.layers.max_pool2d(conv, 2)
 
     with tf.name_scope('conv4'):
-      conv = tf.contrib.layers.conv2d(pool, 128, stride=1, kernel_size=3,
+      conv = tf.contrib.layers.conv2d(pool, 32, stride=1, kernel_size=3,
         weights_initializer=tf.variance_scaling_initializer())
 
     with tf.name_scope('pool4'):
@@ -88,7 +90,7 @@ class DQN(object):
       connect_shape = pool.get_shape().as_list()
       connect_size = connect_shape[1] * connect_shape[2] * connect_shape[3]
       fc = tf.contrib.layers.fully_connected(
-        tf.reshape(pool, [-1, connect_size]), 64,
+        tf.reshape(pool, [-1, connect_size]), 32,
         weights_initializer=tf.variance_scaling_initializer())
 
     with tf.name_scope('output'):
@@ -155,7 +157,8 @@ class Trainer(object):
       pass
 
     logger.info('start training...')
-    for epoch in range(self.max_epoches + 1):
+    epoch = 0
+    while True:
       batch = random.sample(self.replay_buffer, self.batch_size)
       state_batch = np.array([b[0] for b in batch])
       action_batch = np.array([[1 if i == b[1] else 0 for i in range(4)]
@@ -180,6 +183,8 @@ class Trainer(object):
 
       if not self.running:
         break
+
+      epoch += 1
 
     logger.info('training session stop')
     logger.info('closing session...')
@@ -211,28 +216,31 @@ def run_episode(args, env):
     trainer.running = False
   signal.signal(signal.SIGINT, stop)
 
-  epsilon = 0.6
+  epsilon = 0.9
   for episode in range(args.max_episodes + 1):
     state = env.reset()
     step = 0
+    total_reward = 0
     while True:
       action_prob = trainer.predict_action(state)
-      action = epsilon_greedy(action_prob, epsilon)
+      action = epsilon_greedy(action_prob, epsilon * pow(0.9, step))
 
       next_state, reward, done, _ = env.step(action)
+      total_reward += reward
       trainer.add_step([state, action, next_state, reward, done])
 
       if args.render == 'True':
         env.render()
       state = next_state
       if done:
-        logger.info('%d. episode, final step: %d, epsilon: %f',
-          episode, step, epsilon)
+        logger.info('%d. episode, final step: %d, epsilon: %f, total reward: %f',
+          episode, step, epsilon, total_reward)
+        sys.stdout.flush()
         break
 
       step += 1
 
-    epsilon *= 0.9
+    epsilon *= 0.99
     if not trainer.running:
       break
 
