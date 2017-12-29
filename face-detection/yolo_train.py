@@ -76,8 +76,7 @@ class YOLOFace(object):
         indicator_error = ind - indicator
         no_obj = 1.0 - indicator
         num_empty_grid = tf.reduce_sum(no_obj)
-        #  square_error = tf.square(indicator_error)
-        square_error = tf.square(indicator_error) / indicator_sigma
+        square_error = tf.square(indicator_error)
         self.ind_loss = tf.reduce_sum(indicator * square_error) / num_obj
         self.no_obj_loss = tf.reduce_sum(no_obj * square_error) / num_empty_grid
         tf.summary.scalar('indicator_loss', self.ind_loss)
@@ -89,10 +88,8 @@ class YOLOFace(object):
         coord_sigma = compute_std(coord)
 
         coord_error = coord - coordinate
-        #  self.coord_loss = tf.reduce_sum(
-        #    indicator * tf.square(coord_error)) / num_obj
         self.coord_loss = tf.reduce_sum(
-          indicator * tf.square(coord_error / coord_sigma)) / num_obj
+          indicator * tf.square(coord_error)) / num_obj
 
         tf.summary.scalar('coord_loss', self.coord_loss)
         tf.summary.scalar('coord_error',
@@ -104,14 +101,11 @@ class YOLOFace(object):
         size_sigma = compute_std(s)
 
         size_error = s - size
-        #  self.size_loss = tf.reduce_sum(
-        #    indicator * tf.square(size_error)) / num_obj
         self.size_loss = tf.reduce_sum(
-          indicator * tf.square(size_error / size_sigma)) / num_obj
+          indicator * tf.square(size_error)) / num_obj
         tf.summary.scalar('size_loss', self.size_loss)
         tf.summary.scalar('size_error',
           tf.reduce_sum(indicator * tf.abs(size_error)) / num_obj)
-        print(size_sigma)
 
         tf.summary.scalar('size_variance', size_sigma)
 
@@ -122,10 +116,10 @@ class YOLOFace(object):
       #      self.lambda_size * self.size_loss
 
       self.loss = \
-          self.ind_loss + \
-          self.no_obj_loss + \
-          self.coord_loss + \
-          self.size_loss + \
+          self.ind_loss / indicator_sigma + \
+          self.no_obj_loss / indicator_sigma + \
+          self.coord_loss / coord_sigma + \
+          self.size_loss / size_sigma + \
           tf.log(tf.reduce_prod(indicator_sigma) *
             tf.reduce_prod(coord_sigma) * tf.reduce_prod(size_sigma))
       tf.summary.scalar('loss', self.loss)
