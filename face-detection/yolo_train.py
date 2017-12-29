@@ -16,6 +16,13 @@ logging.basicConfig()
 logger = logging.getLogger('yolo')
 logger.setLevel(logging.INFO)
 
+
+def compute_std(inputs, axis):
+  mean = tf.reduce_mean(inputs, axis=axis, keep_dims=True)
+  deviation_squared = tf.reduce_mean(tf.square(inputs - mean), axis=axis)
+  return tf.sqrt(deviation_squared)
+
+
 class YOLOFace(object):
   def __init__(self, input_size, output_size, inference,
       lambda_coord=1.0, lambda_size=10.0, lambda_no_obj=0.86,
@@ -73,14 +80,9 @@ class YOLOFace(object):
         tf.summary.scalar('indicator_loss', self.ind_loss)
         tf.summary.scalar('no_obj_loss', self.no_obj_loss)
 
-        indicator_variance = tf.Variable(1.0, name='indicator_variance')
-        indicator_sigma = tf.square(indicator_variance)
+        indicator_sigma = compute_std(ind)
 
-        no_obj_variance = tf.Variable(1.0, name='no_obj_variance')
-        no_obj_sigma = tf.square(no_obj_variance)
-
-        tf.summary.scalar('indicator_variance', indicator_variance)
-        tf.summary.scalar('no_obj_variance', no_obj_variance)
+        tf.summary.scalar('indicator_variance', indicator_sigma)
 
       with tf.name_scope('coordinate'):
         coord_error = coord - coordinate
@@ -91,9 +93,8 @@ class YOLOFace(object):
         tf.summary.scalar('coord_error',
           tf.reduce_sum(indicator * tf.abs(coord_error)) / num_obj)
 
-        coord_variance = tf.Variable(1.0, name='coordinate_variance')
-        coord_sigma = tf.square(coord_variance)
-        tf.summary.scalar('coordinate_variance', coord_variance)
+        coord_sigma = compute_std(coord)
+        tf.summary.scalar('coordinate_variance', coord_sigma)
 
       with tf.name_scope('size'):
         size_error = s - size
@@ -103,9 +104,8 @@ class YOLOFace(object):
         tf.summary.scalar('size_error',
           tf.reduce_sum(indicator * tf.abs(size_error)) / num_obj)
 
-        size_variance = tf.Variable(1.0, name='size_variance')
-        size_sigma = tf.square(size_variance)
-        tf.summary.scalar('size_variance', size_variance)
+        size_sigma = compute_std(s)
+        tf.summary.scalar('size_variance', size_sigma)
 
       #  self.loss = \
       #      self.ind_loss + \
@@ -115,10 +115,10 @@ class YOLOFace(object):
 
       self.loss = \
           self.ind_loss / indicator_sigma / 2.0 + \
-          self.no_obj_loss / no_obj_sigma / 2.0 + \
+          self.no_obj_loss / indicator_sigma / 2.0 + \
           self.coord_loss / coord_sigma / 2.0 + \
           self.size_loss / size_sigma / 2.0 + \
-          tf.log(indicator_sigma * no_obj_sigma * coord_sigma * size_sigma)
+          tf.log(indicator_sigma * coord_sigma * size_sigma)
       tf.summary.scalar('loss', self.loss)
 
     with tf.name_scope('optimization'):
