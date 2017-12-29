@@ -573,7 +573,8 @@ def train(args):
           yolo.label_grids: training_label_batch,
           yolo.keep_prob: 1.0,
         })
-        logger.info('prediction stddev: %s', str(np.std(prediction, axis=3)))
+        logger.info('prediction stddev: %s',
+          str(np.std(prediction.reshape([-1, 5]), axis=0)))
 
       if epoch % args.display_epoches == 0:
         offset = valid_index
