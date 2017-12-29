@@ -571,6 +571,7 @@ def train(args):
         prediction = sess.run(yolo.output, feed_dict={
           yolo.input_images: training_data_batch,
           yolo.label_grids: training_label_batch,
+          yolo.keep_prob: 1.0,
         })
         logger.info('prediction stddev: %s', str(np.std(prediction, axis=3)))
 
