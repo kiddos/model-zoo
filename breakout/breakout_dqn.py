@@ -19,23 +19,32 @@ logger.setLevel(logging.INFO)
 
 
 class DQN(object):
-  def __init__(self, learning_rate=1e-3):
+  def __init__(self, learning_rate=1e-3, discount_factor=0.99):
     self._setup_inputs()
 
-    with tf.variable_scope('dqn'):
+    with tf.variable_scope('train'):
       q_values = self.inference(self.state)
       self.q_values = q_values
     tf.summary.histogram('q_values', q_values)
 
-    with tf.variable_scope('dqn', reuse=True):
-      next_q_values = self.inference(self.next_state)
+    with tf.variable_scope('target'):
+      next_q_values = self.inference(self.next_state, False)
+      self.next_q_values = next_q_values
     tf.summary.histogram('next_q_values', next_q_values)
 
+    with tf.name_scope('copy_ops'):
+      train_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, 'train')
+      target_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, 'target')
+      self.copy_ops = []
+      assert len(train_vars) == len(target_vars)
+      for i in range(len(train_vars)):
+        self.copy_ops.append(tf.assign(target_vars[i], train_vars[i]))
+
     with tf.name_scope('loss'):
-      target = self.reward + 0.9 * \
+      target = self.reward + discount_factor * \
         tf.cast(tf.logical_not(self.done), tf.float32) * \
         tf.reduce_sum(next_q_values * self.action_mask, axis=1)
-      y = tf.reduce_sum(q_values * self.action_mask)
+      y = tf.reduce_sum(q_values * self.action_mask, axis=1)
       self.loss = tf.reduce_mean(tf.square(y - target))
       tf.summary.scalar('loss', self.loss)
 
@@ -57,16 +66,18 @@ class DQN(object):
     self.action_mask = tf.placeholder(dtype=tf.float32, name='action_mask',
       shape=[None, 4])
 
-  def inference(self, inputs):
+  def inference(self, inputs, trainable=True):
     with tf.name_scope('conv1'):
       conv = tf.contrib.layers.conv2d(inputs, 4, stride=1, kernel_size=3,
-        weights_initializer=tf.random_normal_initializer(stddev=0.04))
+        trainable=trainable,
+        weights_initializer=tf.random_normal_initializer(stddev=0.06))
 
     with tf.name_scope('pool1'):
       pool = tf.contrib.layers.max_pool2d(conv, 2)
 
     with tf.name_scope('conv2'):
       conv = tf.contrib.layers.conv2d(pool, 8, stride=1, kernel_size=3,
+        trainable=trainable,
         weights_initializer=tf.variance_scaling_initializer())
 
     with tf.name_scope('pool2'):
@@ -74,6 +85,7 @@ class DQN(object):
 
     with tf.name_scope('conv3'):
       conv = tf.contrib.layers.conv2d(pool, 16, stride=1, kernel_size=3,
+        trainable=trainable,
         weights_initializer=tf.variance_scaling_initializer())
 
     with tf.name_scope('pool3'):
@@ -81,6 +93,7 @@ class DQN(object):
 
     with tf.name_scope('conv4'):
       conv = tf.contrib.layers.conv2d(pool, 32, stride=1, kernel_size=3,
+        trainable=trainable,
         weights_initializer=tf.variance_scaling_initializer())
 
     with tf.name_scope('pool4'):
@@ -90,13 +103,17 @@ class DQN(object):
       connect_shape = pool.get_shape().as_list()
       connect_size = connect_shape[1] * connect_shape[2] * connect_shape[3]
       fc = tf.contrib.layers.fully_connected(
-        tf.reshape(pool, [-1, connect_size]), 32,
+        tf.reshape(pool, [-1, connect_size]), 32, trainable=trainable,
         weights_initializer=tf.variance_scaling_initializer())
 
     with tf.name_scope('output'):
       outputs = tf.contrib.layers.fully_connected(fc, 4, activation_fn=None,
+        trainable=trainable,
         weights_initializer=tf.variance_scaling_initializer())
     return outputs
+
+  def update_target(self, sess):
+    sess.run(self.copy_ops)
 
   def train(self, sess, states, actions, next_states, rewards, done):
     _, loss = sess.run([self.train_ops, self.loss], feed_dict={
@@ -109,8 +126,8 @@ class DQN(object):
     return loss
 
   def get_action(self, sess, state):
-    q_values = sess.run(self.q_values, feed_dict={
-      self.state: np.expand_dims(state, axis=0)
+    q_values = sess.run(self.next_q_values, feed_dict={
+      self.next_state: np.expand_dims(state, axis=0)
     })
     return q_values
 
@@ -190,6 +207,9 @@ class Trainer(object):
     logger.info('closing session...')
     self.sess.close()
 
+  def update_target(self):
+    self.dqn.update_target(self.sess)
+
   def add_step(self, step):
     self.replay_buffer.append(step)
 
@@ -221,9 +241,11 @@ def run_episode(args, env):
     state = env.reset()
     step = 0
     total_reward = 0
+
+    trainer.update_target()
     while True:
       action_prob = trainer.predict_action(state)
-      action = epsilon_greedy(action_prob, epsilon * pow(0.9, step))
+      action = epsilon_greedy(action_prob, epsilon)
 
       next_state, reward, done, _ = env.step(action)
       total_reward += reward
@@ -244,19 +266,26 @@ def run_episode(args, env):
     if not trainer.running:
       break
 
+    if episode % args.update_frequency == 0 and episode != 0:
+      trainer.update_target()
+
 
 def main():
   parser = ArgumentParser()
   parser.add_argument('--render', dest='render', default='True',
     help='render')
+
   parser.add_argument('--replay-buffer-size', dest='replay_buffer_size',
     type=int, default=20000, help='max replay buffer size')
-  parser.add_argument('--learning-rate', dest='learning_rate', type=float,
-    default=1e-3, help='learning rate for training')
-  parser.add_argument('--batch-size', dest='batch_size', type=int,
-    default=16, help='batch size for training')
   parser.add_argument('--max-episodes', dest='max_episodes', type=int,
     default=10000, help='max episode to run')
+  parser.add_argument('--update-frequency', dest='update_frequency',
+    type=int, default=10, help='update target vars per episode')
+
+  parser.add_argument('--learning-rate', dest='learning_rate', type=float,
+    default=1e-2, help='learning rate for training')
+  parser.add_argument('--batch-size', dest='batch_size', type=int,
+    default=32, help='batch size for training')
   parser.add_argument('--max-epoches', dest='max_epoches', type=int,
     default=200000, help='max epoches to train model')
   parser.add_argument('--display-epoches', dest='display_epoches', type=int,
@@ -269,6 +298,7 @@ def main():
     default=10000, help='epoches to decay learning rate for training')
   parser.add_argument('--keep-prob', dest='keep_prob', type=float,
     default=0.8, help='keep probability for dropout')
+
   parser.add_argument('--saving', dest='saving', type=str,
     default='False', help='rather to save the training result')
   args = parser.parse_args()
