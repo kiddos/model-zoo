@@ -67,10 +67,13 @@ class DQN(object):
       shape=[None, 4])
 
   def inference(self, inputs, trainable=True):
+    with tf.name_scope('resize'):
+      resized = tf.image.resize_images(inputs, [84, 64])
+
     with tf.name_scope('conv1'):
-      conv = tf.contrib.layers.conv2d(inputs, 32, stride=1, kernel_size=3,
+      conv = tf.contrib.layers.conv2d(resized, 32, stride=1, kernel_size=3,
         trainable=trainable,
-        weights_initializer=tf.random_normal_initializer(stddev=0.06))
+        weights_initializer=tf.random_normal_initializer(stddev=0.006))
 
     with tf.name_scope('pool1'):
       pool = tf.contrib.layers.max_pool2d(conv, 2)
@@ -83,37 +86,11 @@ class DQN(object):
     with tf.name_scope('pool2'):
       pool = tf.contrib.layers.max_pool2d(conv, 2)
 
-    with tf.name_scope('conv3'):
-      conv = tf.contrib.layers.conv2d(pool, 128, stride=1, kernel_size=3,
-        trainable=trainable,
-        weights_initializer=tf.variance_scaling_initializer())
-
-    with tf.name_scope('pool3'):
-      pool = tf.contrib.layers.max_pool2d(conv, 2)
-
-    with tf.name_scope('conv4'):
-      conv = tf.contrib.layers.conv2d(pool, 256, stride=1, kernel_size=3,
-        trainable=trainable,
-        weights_initializer=tf.variance_scaling_initializer())
-
-    with tf.name_scope('pool4'):
-      pool = tf.contrib.layers.max_pool2d(conv, 2)
-
-    with tf.name_scope('conv5'):
-      conv = tf.contrib.layers.conv2d(pool, 64, stride=1, kernel_size=3,
-        trainable=trainable,
-        weights_initializer=tf.variance_scaling_initializer())
-
-    with tf.name_scope('conv6'):
-      conv = tf.contrib.layers.conv2d(pool, 16, stride=1, kernel_size=3,
-        trainable=trainable,
-        weights_initializer=tf.variance_scaling_initializer())
-
     with tf.name_scope('fully_connected'):
-      connect_shape = conv.get_shape().as_list()
+      connect_shape = pool.get_shape().as_list()
       connect_size = connect_shape[1] * connect_shape[2] * connect_shape[3]
       fc = tf.contrib.layers.fully_connected(
-        tf.reshape(conv, [-1, connect_size]), 16, trainable=trainable,
+        tf.reshape(pool, [-1, connect_size]), 16, trainable=trainable,
         weights_initializer=tf.variance_scaling_initializer())
 
     with tf.name_scope('output'):
@@ -253,6 +230,7 @@ def run_episode(args, env):
   signal.signal(signal.SIGINT, stop)
 
   epsilon = 0.9
+  random_chance = 0.8
   for episode in range(args.max_episodes + 1):
     state = env.reset()
     step = 0
@@ -260,8 +238,11 @@ def run_episode(args, env):
 
     trainer.update_target()
     while True:
-      action_prob = trainer.predict_action(state)
-      action = epsilon_greedy(action_prob, epsilon)
+      if random.random() < random_chance:
+        action = env.action_space.sample()
+      else:
+        action_prob = trainer.predict_action(state)
+        action = epsilon_greedy(action_prob, epsilon)
 
       next_state, reward, done, _ = env.step(action)
       total_reward += reward
@@ -271,8 +252,8 @@ def run_episode(args, env):
         env.render()
       state = next_state
       if done:
-        logger.info('%d. episode, final step: %d, epsilon: %f, total reward: %f',
-          episode, step, epsilon, total_reward)
+        logger.info('%d. steps: %d, epsilon: %f, total: %f, chance: %f',
+          episode, step, epsilon, total_reward, random_chance)
         sys.stdout.flush()
         break
 
@@ -285,6 +266,9 @@ def run_episode(args, env):
       trainer.update_target()
     if episode % args.decay_epsilon == 0 and episode != 0:
       epsilon *= 0.9
+
+    if episode % 20 == 0 and episode != 0:
+      random_chance *= 0.9
 
 
 def main():
