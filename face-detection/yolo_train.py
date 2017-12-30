@@ -151,7 +151,7 @@ class YOLOFace(object):
     random_noise = tf.random_normal_initializer(mean=0.0, stddev=10.0)
     noise = random_noise([self.input_size, self.input_size, 3])
     processed = tf.minimum(tf.maximum(inputs + noise, 0), 255)
-    processed = tf.image.random_brightness(processed, max_delta=1e-2)
+    processed = tf.image.random_brightness(processed, max_delta=1e-4)
     processed = tf.image.random_contrast(processed, lower=0.0, upper=2.0)
 
     reshaped = tf.reshape(processed, [-1, self.input_size, 3])
