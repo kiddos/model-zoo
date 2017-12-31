@@ -20,7 +20,7 @@ logger.setLevel(logging.INFO)
 
 
 class DQN(object):
-  def __init__(self, learning_rate=1e-3, discount_factor=0.01):
+  def __init__(self, learning_rate=1e-3, discount_factor=0.99):
     self._setup_inputs()
 
     with tf.variable_scope('train'):
