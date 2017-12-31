@@ -23,6 +23,7 @@ class YOLOFace(object):
     self.input_size = input_size
     self.output_size = output_size
     self.output_channel = 5 * num_bounding_box
+    self.num_bounding_box = num_bounding_box
     self.lambda_coord = lambda_coord
     self.lambda_size = lambda_size
     self.lambda_no_obj = lambda_no_obj
@@ -43,23 +44,43 @@ class YOLOFace(object):
         tf.summary.image('preprocessed_input_images', preprocessed)
       else:
         logits = self.inference_func(self.input_images)
-      ind, coord, s = tf.split(logits, [1, 2, 2], axis=3)
+
+      ind_index = [p * 5 for p in range(self.num_bounding_box)]
+      x_index = [c * 5 + 1 for c in range(self.num_bounding_box)]
+      y_index = [c * 5 + 2 for c in range(self.num_bounding_box)]
+      w_index = [s * 5 + 3 for s in range(self.num_bounding_box)]
+      h_index = [s * 5 + 4 for s in range(self.num_bounding_box)]
+      logger.info(ind_index)
+      logger.info(x_index)
+      logger.info(y_index)
+      logger.info(w_index)
+      logger.info(h_index)
+      ind = tf.gather(logits, ind_index, axis=3)
+      x = tf.gather(logits, x_index, axis=3)
+      y = tf.gather(logits, y_index, axis=3)
+      w = tf.gather(logits, w_index, axis=3)
+      h = tf.gather(logits, h_index, axis=3)
 
       tf.summary.image('input_images', self.input_images)
 
     # outputs
     with tf.variable_scope('yolo', reuse=True):
       outputs = self.inference_func(self.input_images)
-      ind_output, coord_output, size_output = \
-        tf.split(outputs, [1, 2, 2], axis=3)
-      coord_output = coord_output * self.input_size
-      size_output = size_output * self.input_size
-      self.output = tf.concat([ind_output, coord_output, size_output], axis=3,
-        name='prediction')
+      scale = []
+      for i in range(self.num_bounding_box):
+        scale += [1.0, self.input_size, self.input_size, self.input_size,
+          self.input_size]
+      scale = tf.constant(scale)
+      self.output = tf.multiply(outputs, scale, name='prediction')
 
     with tf.name_scope('loss'):
-      indicator, coordinate, size = tf.split(self.label_grids,
-        [1, 2, 2], axis=3)
+      #  indicator, coordinate, size = tf.split(self.label_grids,
+      #    [1, 2, 2], axis=3)
+      indicator = tf.gather(self.label_grids, ind_index, axis=3)
+      x_label = tf.gather(self.label_grids, x_index, axis=3)
+      y_label = tf.gather(self.label_grids, y_index, axis=3)
+      w_label = tf.gather(self.label_grids, w_index, axis=3)
+      h_label = tf.gather(self.label_grids, h_index, axis=3)
       tf.summary.image('indicator_prediction', ind)
 
       num_obj = tf.reduce_sum(indicator)
@@ -70,25 +91,19 @@ class YOLOFace(object):
         square_error = tf.square(indicator_error)
         self.ind_loss = tf.reduce_sum(indicator * square_error) / num_obj
         self.no_obj_loss = tf.reduce_sum(no_obj * square_error) / num_empty_grid
+
         tf.summary.scalar('indicator_loss', self.ind_loss)
         tf.summary.scalar('no_obj_loss', self.no_obj_loss)
 
       with tf.name_scope('coordinate'):
-        coord_error = coord - coordinate
-        self.coord_loss = tf.reduce_sum(
-          indicator * tf.square(coord_error)) / num_obj
-
+        self.coord_loss = (self.error_sum(indicator, x, x_label) +
+          self.error_sum(indicator, y, y_label)) / num_obj
         tf.summary.scalar('coord_loss', self.coord_loss)
-        tf.summary.scalar('coord_error',
-          tf.reduce_sum(indicator * tf.abs(coord_error)) / num_obj)
 
       with tf.name_scope('size'):
-        size_error = s - size
-        self.size_loss = tf.reduce_sum(
-          indicator * tf.square(size_error)) / num_obj
+        self.size_loss = (self.error_sum(indicator, w, w_label) +
+          self.error_sum(indicator, h, h_label)) / num_obj
         tf.summary.scalar('size_loss', self.size_loss)
-        tf.summary.scalar('size_error',
-          tf.reduce_sum(indicator * tf.abs(size_error)) / num_obj)
 
       self.loss = self.ind_loss + \
           self.lambda_no_obj * self.no_obj_loss + \
@@ -108,21 +123,32 @@ class YOLOFace(object):
 
     with tf.variable_scope('yolo', reuse=True):
       validation_logits = self.inference_func(self.valid_images)
-      valid_indicator, valid_coordinate, valid_size = \
-        tf.split(self.valid_labels, [1, 2, 2], axis=3)
-      valid_ind, valid_coord, valid_s = tf.split(
-        validation_logits, [1, 2, 2], axis=3)
+      valid_indicator = tf.gather(self.valid_labels, ind_index, axis=3)
+      valid_x_label = tf.gather(self.valid_labels, x_index, axis=3)
+      valid_y_label = tf.gather(self.valid_labels, y_index, axis=3)
+      valid_w_label = tf.gather(self.valid_labels, w_index, axis=3)
+      valid_h_label = tf.gather(self.valid_labels, h_index, axis=3)
+
+      valid_ind = tf.gather(validation_logits, ind_index, axis=3)
+      valid_x = tf.gather(validation_logits, x_index, axis=3)
+      valid_y = tf.gather(validation_logits, y_index, axis=3)
+      valid_w = tf.gather(validation_logits, w_index, axis=3)
+      valid_h = tf.gather(validation_logits, h_index, axis=3)
+
       tf.summary.image('valid_indicator_prediction', valid_ind)
 
     with tf.name_scope('evaluation'):
       self.indicator_accuracy, self.intersect_area = \
-        self.evaluate(ind, indicator, coord, coordinate, s, size)
+        self.evaluate(ind, indicator, x, x_label, y, y_label,
+          w, w_label, h, h_label)
       tf.summary.scalar('indicator_accuracy', self.indicator_accuracy)
       tf.summary.scalar('intersect_area_ratio', self.intersect_area)
 
       self.valid_indicator_accuarcy, self.valid_intersect_area = \
         self.evaluate(valid_ind, valid_indicator,
-          valid_coord, valid_coordinate, valid_s, valid_size)
+          valid_x, valid_x_label, valid_y, valid_y_label,
+          valid_w, valid_w_label, valid_h, valid_h_label)
+
       tf.summary.scalar('valid_indicator_accuracy',
         self.valid_indicator_accuarcy)
       tf.summary.scalar('valid_intersect_area_ratio',
@@ -161,60 +187,48 @@ class YOLOFace(object):
 
   def inference_v0(self, inputs):
     ksize = 3
-    stddev = 0.016
     with tf.name_scope('conv1'):
-      conv = tf.contrib.layers.conv2d(inputs, 64, stride=1, kernel_size=ksize,
+      conv = tf.contrib.layers.conv2d(inputs, 16, stride=1, kernel_size=ksize,
         weights_initializer=tf.random_normal_initializer(stddev=0.0006))
 
     with tf.name_scope('pool1'):
       pool = tf.contrib.layers.max_pool2d(conv, 2)
 
     with tf.name_scope('conv2'):
-      conv = tf.contrib.layers.conv2d(pool, 128, stride=1, kernel_size=ksize,
-        weights_initializer=tf.random_normal_initializer(stddev=stddev))
+      conv = tf.contrib.layers.conv2d(pool, 32, stride=1, kernel_size=ksize,
+        weights_initializer=tf.variance_scaling_initializer())
 
     with tf.name_scope('pool2'):
       pool = tf.contrib.layers.max_pool2d(conv, 2)
 
     with tf.name_scope('conv3'):
-      conv = tf.contrib.layers.conv2d(pool, 256, stride=1, kernel_size=ksize,
-        weights_initializer=tf.random_normal_initializer(stddev=stddev))
+      conv = self.multiple_conv(64, ksize, pool, multiple=1)
 
     with tf.name_scope('pool3'):
       pool = tf.contrib.layers.max_pool2d(conv, 2)
 
     with tf.name_scope('conv4'):
-      conv = tf.contrib.layers.conv2d(pool, 512, stride=1, kernel_size=ksize,
-        weights_initializer=tf.random_normal_initializer(stddev=stddev))
+      conv = self.multiple_conv(256, ksize, pool, multiple=1)
 
     with tf.name_scope('pool4'):
       pool = tf.contrib.layers.max_pool2d(conv, 2)
 
     with tf.name_scope('conv5'):
-      conv = tf.contrib.layers.conv2d(pool, 1024, stride=1, kernel_size=ksize,
-        weights_initializer=tf.random_normal_initializer(stddev=stddev))
+      conv = self.multiple_conv(384, ksize, pool, multiple=1)
 
-    with tf.name_scope('drop5'):
+    with tf.name_scope('pool5'):
+      pool = tf.contrib.layers.max_pool2d(conv, 2)
+
+    with tf.name_scope('conv6'):
+      conv = self.multiple_conv(512, ksize, pool, multiple=1)
+
+    with tf.name_scope('drop6'):
       drop = tf.nn.dropout(conv, keep_prob=self.keep_prob)
 
-    with tf.name_scope('fully_connected'):
-      connect_shape = drop.get_shape().as_list()
-      connect_size = connect_shape[1] * connect_shape[2] * connect_shape[3]
-      stddev = np.sqrt(2.0 / connect_size)
-      fc_size = 1024
-      fc = tf.contrib.layers.fully_connected(
-        tf.reshape(drop, [-1, connect_size]), fc_size,
-        weights_initializer=tf.random_normal_initializer(stddev=stddev))
-
     with tf.name_scope('output'):
-      connect_size = self.output_size * self.output_size * self.output_channel
-      stddev = np.sqrt(2.0 / fc_size)
-      output = tf.contrib.layers.fully_connected(fc, connect_size,
-        activation_fn=None,
-        weights_initializer=tf.random_normal_initializer(stddev=stddev))
-
-      logits = tf.reshape(output,
-        [-1, self.output_size, self.output_size, self.output_channel])
+      logits = tf.contrib.layers.conv2d(drop, self.output_channel,
+        stride=1, kernel_size=ksize, activation_fn=None,
+        weights_initializer=tf.variance_scaling_initializer())
     return logits
 
   def inference_v1(self, inputs):
@@ -481,6 +495,9 @@ class YOLOFace(object):
 
     return conv
 
+  def error_sum(self, indicator, p, l):
+    return tf.reduce_sum(indicator * tf.square(p - l))
+
   def predict_batch(self, sess, input_images):
     return sess.run(self.output, feed_dict={
       self.input_images: input_images,
@@ -502,22 +519,27 @@ class YOLOFace(object):
     os.mkdir(folder)
     return folder
 
-  def evaluate(self, ind, ind_label, coord, coordinate, s, size):
+  def evaluate(self,
+      ind, ind_label,
+      x, x_label,
+      y, y_label,
+      w, w_label,
+      h, h_label):
     num_obj = tf.reduce_sum(ind_label)
     certain = tf.cast(tf.greater_equal(ind, 0.66), tf.float32)
     indicator_accuracy = tf.reduce_sum(
       ind_label * tf.cast(tf.equal(certain, ind_label), tf.float32)) / num_obj
 
-    left_bottom = tf.maximum(coord - s / 2.0, coordinate - size / 2.0)
-    right_top = tf.minimum(coord + s / 2.0, coordinate + size / 2.0)
-    left, bottom = tf.split(left_bottom, [1, 1], axis=3)
-    right, top = tf.split(left_bottom, [1, 1], axis=3)
-    valid_intersection = tf.reduce_all(
-      tf.greater(right_top, left_bottom), axis=3)
-    area = tf.reduce_prod(right_top - left_bottom, axis=3)
-    true_area = tf.maximum(tf.reduce_prod(size, axis=3), 1e-5)
-    intersect_area = tf.reduce_sum(
-      tf.cast(valid_intersection, tf.float32) * area / true_area) / num_obj
+    left = tf.maximum(x - w / 2.0, x_label - w_label / 2.0)
+    bottom = tf.minimum(y + h / 2.0, y_label + h_label / 2.0)
+    right = tf.minimum(x + w / 2.0, x_label + w_label / 2.0)
+    top = tf.maximum(y - h / 2.0, y_label - h_label / 2.0)
+
+    valid = tf.cast(tf.logical_and(tf.greater_equal(right, left),
+      tf.greater_equal(bottom, top)), tf.float32)
+    area = (right - left) * (bottom - top)
+    true_area = tf.maximum(w_label * h_label, 1e-5)
+    intersect_area = tf.reduce_sum(valid * area / true_area) / num_obj
     return indicator_accuracy, intersect_area
 
 
