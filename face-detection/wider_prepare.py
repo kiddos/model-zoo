@@ -191,7 +191,7 @@ class WIDERData(object):
           grid_x = int(cx * self.output_size)
           grid_y = int(cy * self.output_size)
 
-          for b in range(len(self.num_bounding_box)):
+          for b in range(self.num_bounding_box):
             if label_image[grid_y, grid_x, b * 5] == 0:
               label_image[grid_y, grid_x, b * 5] = 1.0
               label_image[grid_y, grid_x, b * 5 + 1] = cx
