@@ -61,6 +61,9 @@ class WIDERLoader(object):
   def get_output_size(self):
     return self.output_size
 
+  def get_num_bounding_box(self):
+    return self.num_bounding_box
+
   def get_training_data(self):
     index = np.random.permutation(np.arange(len(self.training_data)))
     return self.training_data[index, :], self.training_label[index, :]
