@@ -74,8 +74,6 @@ class YOLOFace(object):
       self.output = tf.multiply(outputs, scale, name='prediction')
 
     with tf.name_scope('loss'):
-      #  indicator, coordinate, size = tf.split(self.label_grids,
-      #    [1, 2, 2], axis=3)
       indicator = tf.gather(self.label_grids, ind_index, axis=3)
       x_label = tf.gather(self.label_grids, x_index, axis=3)
       y_label = tf.gather(self.label_grids, y_index, axis=3)
@@ -189,7 +187,7 @@ class YOLOFace(object):
     ksize = 3
     with tf.name_scope('conv1'):
       conv = tf.contrib.layers.conv2d(inputs, 16, stride=1, kernel_size=ksize,
-        weights_initializer=tf.random_normal_initializer(stddev=0.0006))
+        weights_initializer=tf.random_normal_initializer(stddev=0.006))
 
     with tf.name_scope('pool1'):
       pool = tf.contrib.layers.max_pool2d(conv, 2)
@@ -275,7 +273,7 @@ class YOLOFace(object):
     ksize = 3
     with tf.name_scope('conv1'):
       conv = tf.contrib.layers.conv2d(inputs, 8, stride=1, kernel_size=ksize,
-        weights_initializer=tf.random_normal_initializer(stddev=0.0006))
+        weights_initializer=tf.random_normal_initializer(stddev=0.006))
 
     with tf.name_scope('pool1'):
       pool = tf.contrib.layers.max_pool2d(conv, 2)
@@ -315,7 +313,7 @@ class YOLOFace(object):
     ksize = 3
     with tf.name_scope('conv1'):
       conv = tf.contrib.layers.conv2d(inputs, 8, stride=1, kernel_size=ksize,
-        weights_initializer=tf.random_normal_initializer(stddev=0.0006))
+        weights_initializer=tf.random_normal_initializer(stddev=0.006))
 
     with tf.name_scope('pool1'):
       pool = tf.contrib.layers.max_pool2d(conv, 2)
@@ -361,7 +359,7 @@ class YOLOFace(object):
     ksize = 3
     with tf.name_scope('conv1'):
       conv = tf.contrib.layers.conv2d(inputs, 8, stride=1, kernel_size=ksize,
-        weights_initializer=tf.random_normal_initializer(stddev=0.0006))
+        weights_initializer=tf.random_normal_initializer(stddev=0.006))
 
     with tf.name_scope('pool1'):
       pool = tf.contrib.layers.max_pool2d(conv, 2)
@@ -401,7 +399,7 @@ class YOLOFace(object):
     ksize = 3
     with tf.name_scope('conv1'):
       conv = tf.contrib.layers.conv2d(inputs, 8, stride=1, kernel_size=ksize,
-        weights_initializer=tf.random_normal_initializer(stddev=0.0006))
+        weights_initializer=tf.random_normal_initializer(stddev=0.006))
 
     with tf.name_scope('pool1'):
       pool = tf.contrib.layers.max_pool2d(conv, 2)
@@ -446,7 +444,7 @@ class YOLOFace(object):
     ksize = 3
     with tf.name_scope('conv1'):
       conv = tf.contrib.layers.conv2d(inputs, 16, stride=1, kernel_size=ksize,
-        weights_initializer=tf.random_normal_initializer(stddev=0.0006))
+        weights_initializer=tf.random_normal_initializer(stddev=0.006))
 
     with tf.name_scope('pool1'):
       pool = tf.contrib.layers.max_pool2d(conv, 2)
