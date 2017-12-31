@@ -26,6 +26,7 @@ class WIDERLoader(object):
     meta = self.cursor.fetchall()[0]
     self.input_size = meta[0]
     self.output_size = meta[1]
+    self.num_bounding_box = meta[2]
 
   def load_data(self):
     self.load_training_data()
@@ -41,7 +42,7 @@ class WIDERLoader(object):
       input_image = np.frombuffer(entry[0], np.uint8).reshape([
         self.input_size, self.input_size, 3])
       l = np.frombuffer(entry[1], np.float32).reshape([
-        self.output_size, self.output_size, 5])
+        self.output_size, self.output_size, 5 * self.num_bounding_box])
       data.append(input_image)
       label.append(l)
     return np.array(data), np.array(label)
@@ -59,6 +60,9 @@ class WIDERLoader(object):
 
   def get_output_size(self):
     return self.output_size
+
+  def get_num_bounding_box(self):
+    return self.num_bounding_box
 
   def get_training_data(self):
     index = np.random.permutation(np.arange(len(self.training_data)))
@@ -90,17 +94,18 @@ def main():
   draw = ImageDraw.Draw(output)
   for r in range(loader.output_size):
     for c in range(loader.output_size):
-      p = test_label[r, c, 0]
-      if p == 1.0:
-        logger.info('face at (%d, %d) grid cell' % (c, r))
-        cx = test_label[r, c, 1]
-        cy = test_label[r, c, 2]
-        w = test_label[r, c, 3]
-        h = test_label[r, c, 4]
-        x = int((cx - w / 2) * loader.input_size)
-        y = int((cy - h / 2) * loader.input_size)
-        w = int(w * loader.input_size)
-        h = int(h * loader.input_size)
+      for b in range(loader.num_bounding_box):
+        p = test_label[r, c, b * 5]
+        if p == 1.0:
+          logger.info('face at (%d, %d) grid cell' % (c, r))
+          cx = test_label[r, c, b * 5 + 1]
+          cy = test_label[r, c, b * 5 + 2]
+          w = test_label[r, c, b * 5 + 3]
+          h = test_label[r, c, b * 5 + 4]
+          x = int((cx - w / 2) * loader.input_size)
+          y = int((cy - h / 2) * loader.input_size)
+          w = int(w * loader.input_size)
+          h = int(h * loader.input_size)
 
         draw.rectangle([x, y, x + w, y + h], outline=(0, 255, 0))
   del draw

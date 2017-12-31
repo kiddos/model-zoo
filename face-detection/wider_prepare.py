@@ -103,6 +103,7 @@ class WIDERData(object):
   def __init__(self, args):
     self.input_size = args.input_size
     self.output_size = args.output_size
+    self.num_bounding_box = args.num_bounding_box
 
     self.training_image_folder = args.training_folder
     self.training_label = args.training_label
@@ -119,9 +120,10 @@ class WIDERData(object):
     self.cursor.execute("""DROP TABLE IF EXISTS meta;""")
     self.cursor.execute("""CREATE TABLE meta(
       inputSize INTEGER NOT NULL,
-      outputSize INTEGER NOT NULL);""")
-    self.cursor.execute("""INSERT INTO meta VALUES(?, ?);""",
-      [self.input_size, self.output_size])
+      outputSize INTEGER NOT NULL,
+      numBoundingBox INTEGER NOT NULL);""")
+    self.cursor.execute("""INSERT INTO meta VALUES(?, ?, ?);""",
+      [self.input_size, self.output_size, self.num_bounding_box])
 
     logger.info('creating training data table...')
     self.cursor.execute("""DROP TABLE IF EXISTS wider_train;""")
@@ -177,7 +179,7 @@ class WIDERData(object):
           self.input_size, self.input_size, label)
 
         label_image = np.zeros(dtype=np.float32,
-          shape=[self.output_size, self.output_size, 5])
+          shape=[self.output_size, self.output_size, 5 * self.num_bounding_box])
         for l in new_label:
           x = float(l['x']) / self.input_size
           y = float(l['y']) / self.input_size
@@ -189,11 +191,14 @@ class WIDERData(object):
           grid_x = int(cx * self.output_size)
           grid_y = int(cy * self.output_size)
 
-          label_image[grid_y, grid_x, 0] = 1.0
-          label_image[grid_y, grid_x, 1] = cx
-          label_image[grid_y, grid_x, 2] = cy
-          label_image[grid_y, grid_x, 3] = w
-          label_image[grid_y, grid_x, 4] = h
+          for b in range(len(self.num_bounding_box)):
+            if label_image[grid_y, grid_x, b * 5] == 0:
+              label_image[grid_y, grid_x, b * 5] = 1.0
+              label_image[grid_y, grid_x, b * 5 + 1] = cx
+              label_image[grid_y, grid_x, b * 5 + 2] = cy
+              label_image[grid_y, grid_x, b * 5 + 3] = w
+              label_image[grid_y, grid_x, b * 5 + 4] = h
+              break
 
         self.cursor.execute("""INSERT INTO %s(
           image, label) VALUES(?, ?)""" % (table_name),
@@ -226,21 +231,6 @@ class WIDERData(object):
     logger.info('commit data')
     self.connection.commit()
 
-#  def save(args):
-#    if os.path.isfile(args.training_label) and \
-#        os.path.isdir(args.training_folder):
-#      labels = load_labels(args.training_label)
-#      training_data = load_training_data(args.training_folder, labels, args.size)
-#      logger.info('data loaded.')
-
-#      logger.info('saving into %s...' % (args.output_pickle))
-#      with open(args.output_pickle, 'wb') as f:
-#        pickle.dump({
-#          'width': args.size,
-#          'height': args.size,
-#          'training_data': training_data,
-#        }, f)
-
 
 def main():
   parser = ArgumentParser()
@@ -250,6 +240,8 @@ def main():
     default=19, help='consistant output image size')
   parser.add_argument('--dbname', dest='dbname', type=str,
     default='wider.sqlite3', help='sqlite3 db to save to')
+  parser.add_argument('--num-bounding-box', dest='num_bounding_box', type=int,
+    default=1, help='number of bounding box for each output grid cell')
 
   parser.add_argument('--training-folder', dest='training_folder',
     default='WIDER_train/images', type=str,

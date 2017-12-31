@@ -17,12 +17,12 @@ logger = logging.getLogger('yolo')
 logger.setLevel(logging.INFO)
 
 class YOLOFace(object):
-  def __init__(self, input_size, output_size, inference,
-      lambda_coord=1.0, lambda_size=10.0, lambda_no_obj=0.86,
-      learning_rate=1e-4, noise=True):
+  def __init__(self, input_size, output_size, num_bounding_box, inference,
+      lambda_coord=6.0, lambda_size=6.0, lambda_no_obj=0.86,
+      learning_rate=1e-3, noise=True):
     self.input_size = input_size
     self.output_size = output_size
-    self.output_channel = 1 * 5
+    self.output_channel = 5 * num_bounding_box
     self.lambda_coord = lambda_coord
     self.lambda_size = lambda_size
     self.lambda_no_obj = lambda_no_obj
@@ -252,8 +252,8 @@ class YOLOFace(object):
       drop = tf.nn.dropout(conv, keep_prob=self.keep_prob)
 
     with tf.name_scope('output'):
-      logits = tf.contrib.layers.conv2d(drop, 5, stride=1, kernel_size=ksize,
-        activation_fn=None,
+      logits = tf.contrib.layers.conv2d(drop, self.output_channel,
+        stride=1, kernel_size=ksize, activation_fn=None,
         weights_initializer=tf.variance_scaling_initializer())
     return logits
 
@@ -292,8 +292,8 @@ class YOLOFace(object):
       drop = tf.nn.dropout(conv, keep_prob=self.keep_prob)
 
     with tf.name_scope('output'):
-      logits = tf.contrib.layers.conv2d(drop, 5, stride=1, kernel_size=ksize,
-        activation_fn=None,
+      logits = tf.contrib.layers.conv2d(drop, self.output_channel,
+        stride=1, kernel_size=ksize, activation_fn=None,
         weights_initializer=tf.variance_scaling_initializer())
     return logits
 
@@ -338,8 +338,8 @@ class YOLOFace(object):
       drop = tf.nn.dropout(conv, keep_prob=self.keep_prob)
 
     with tf.name_scope('output'):
-      logits = tf.contrib.layers.conv2d(drop, 5, stride=1, kernel_size=ksize,
-        activation_fn=None,
+      logits = tf.contrib.layers.conv2d(drop, self.output_channel,
+        stride=1, kernel_size=ksize, activation_fn=None,
         weights_initializer=tf.variance_scaling_initializer())
     return logits
 
@@ -378,8 +378,8 @@ class YOLOFace(object):
       drop = tf.nn.dropout(conv, keep_prob=self.keep_prob)
 
     with tf.name_scope('output'):
-      logits = tf.contrib.layers.conv2d(drop, 5, stride=1, kernel_size=ksize,
-        activation_fn=None,
+      logits = tf.contrib.layers.conv2d(drop, self.output_channel,
+        stride=1, kernel_size=ksize, activation_fn=None,
         weights_initializer=tf.variance_scaling_initializer())
     return logits
 
@@ -423,8 +423,8 @@ class YOLOFace(object):
       drop = tf.nn.dropout(conv, keep_prob=self.keep_prob)
 
     with tf.name_scope('output'):
-      logits = tf.contrib.layers.conv2d(drop, 5, stride=1, kernel_size=ksize,
-        activation_fn=None,
+      logits = tf.contrib.layers.conv2d(drop, self.output_channel,
+        stride=1, kernel_size=ksize, activation_fn=None,
         weights_initializer=tf.variance_scaling_initializer())
     return logits
 
@@ -463,8 +463,8 @@ class YOLOFace(object):
       drop = tf.nn.dropout(conv, keep_prob=self.keep_prob)
 
     with tf.name_scope('output'):
-      logits = tf.contrib.layers.conv2d(drop, 5, stride=1, kernel_size=ksize,
-        activation_fn=None,
+      logits = tf.contrib.layers.conv2d(drop, self.output_channel,
+        stride=1, kernel_size=ksize, activation_fn=None,
         weights_initializer=tf.variance_scaling_initializer())
     return logits
 
@@ -526,7 +526,10 @@ def train(args):
   loader.load_training_data()
   loader.load_validation_data()
 
-  yolo = YOLOFace(loader.get_input_size(), loader.get_output_size(),
+  yolo = YOLOFace(
+    loader.get_input_size(),
+    loader.get_output_size(),
+    loader.get_num_bounding_box(),
     args.inference,
     lambda_coord=args.lambda_coord,
     lambda_size=args.lambda_size,
@@ -569,7 +572,7 @@ def train(args):
           yolo.keep_prob: 1.0,
         })
         logger.info('prediction stddev: %s',
-          str(np.std(prediction.reshape([-1, 5]), axis=0)))
+          str(np.std(prediction.reshape([-1, yolo.output_channel]), axis=0)))
 
       if epoch % args.display_epoches == 0:
         offset = valid_index
@@ -660,7 +663,7 @@ def fit(original, size):
 def inference(args):
   with tf.device('/:cpu0'):
     yolo = YOLOFace(args.test_input_size, args.test_output_size,
-      args.inference)
+      args.test_num_bounding_box, args.inference)
 
   config = tf.ConfigProto()
   config.gpu_options.allow_growth = True
@@ -738,6 +741,8 @@ def main():
     default=224, type=int, help='input size for inference mode')
   parser.add_argument('--test-output-size', dest='test_output_size',
     default=14, type=int, help='output size for inference mode')
+  parser.add_argument('--test_num_bounding_box', dest='test_num_bounding_box',
+    default=1, type=int, help='output size for inference mode')
 
   args = parser.parse_args()
 
