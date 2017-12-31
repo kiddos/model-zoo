@@ -72,7 +72,7 @@ class DQN(object):
 
   def inference(self, inputs, trainable=True):
     with tf.name_scope('resize'):
-      resized = tf.image.resize_images(inputs, [53, 40])
+      resized = tf.image.resize_images(inputs, [105, 80])
 
     with tf.name_scope('gray_scale'):
       gray = tf.image.rgb_to_grayscale(resized)
@@ -80,7 +80,7 @@ class DQN(object):
     with tf.name_scope('conv1'):
       conv = tf.contrib.layers.conv2d(gray, 16, stride=1, kernel_size=3,
         trainable=trainable,
-        weights_initializer=tf.random_normal_initializer(stddev=0.006))
+        weights_initializer=tf.random_normal_initializer(stddev=0.002))
 
     with tf.name_scope('pool1'):
       pool = tf.contrib.layers.max_pool2d(conv, 2)
@@ -93,11 +93,27 @@ class DQN(object):
     with tf.name_scope('pool2'):
       pool = tf.contrib.layers.max_pool2d(conv, 2)
 
+    with tf.name_scope('conv3'):
+      conv = tf.contrib.layers.conv2d(pool, 64, stride=1, kernel_size=3,
+        trainable=trainable,
+        weights_initializer=tf.variance_scaling_initializer())
+
+    with tf.name_scope('pool3'):
+      pool = tf.contrib.layers.max_pool2d(conv, 2)
+
+    with tf.name_scope('conv4'):
+      conv = tf.contrib.layers.conv2d(pool, 128, stride=1, kernel_size=3,
+        trainable=trainable,
+        weights_initializer=tf.variance_scaling_initializer())
+
+    with tf.name_scope('pool4'):
+      pool = tf.contrib.layers.max_pool2d(conv, 2)
+
     with tf.name_scope('fully_connected'):
       connect_shape = pool.get_shape().as_list()
       connect_size = connect_shape[1] * connect_shape[2] * connect_shape[3]
       fc = tf.contrib.layers.fully_connected(
-        tf.reshape(pool, [-1, connect_size]), 32, trainable=trainable,
+        tf.reshape(pool, [-1, connect_size]), 256, trainable=trainable,
         weights_initializer=tf.variance_scaling_initializer())
 
     with tf.name_scope('output'):
@@ -143,10 +159,10 @@ class Trainer(object):
     self.display_epoches = args.display_epoches
     self.save_epoches = args.save_epoches
     self.replay_buffer_size = args.replay_buffer_size
+    self.saving = (args.saving == 'True')
 
-    if args.saving == 'True':
+    if self.saving:
       logger.info('saving model...')
-      self.saving = True
       if not os.path.isdir('dqn'):
         os.mkdir('dqn')
       self.checkpoint = os.path.join('dqn', 'dqn')
