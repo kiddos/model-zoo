@@ -8,6 +8,7 @@ import threading
 import signal
 import os
 import sys
+import copy
 from collections import deque
 from argparse import ArgumentParser
 
@@ -19,7 +20,7 @@ logger.setLevel(logging.INFO)
 
 
 class DQN(object):
-  def __init__(self, learning_rate=1e-3, discount_factor=0.99):
+  def __init__(self, learning_rate=1e-3, discount_factor=0.01):
     self._setup_inputs()
 
     with tf.variable_scope('train'):
@@ -41,9 +42,12 @@ class DQN(object):
         self.copy_ops.append(tf.assign(target_vars[i], train_vars[i]))
 
     with tf.name_scope('loss'):
+      #  target = self.reward + discount_factor * \
+      #    tf.cast(tf.logical_not(self.done), tf.float32) * \
+      #    tf.reduce_sum(next_q_values * self.action_mask, axis=1)
       target = self.reward + discount_factor * \
         tf.cast(tf.logical_not(self.done), tf.float32) * \
-        tf.reduce_sum(next_q_values * self.action_mask, axis=1)
+        tf.reduce_max(next_q_values, axis=1)
       y = tf.reduce_sum(q_values * self.action_mask, axis=1)
       self.loss = tf.reduce_mean(tf.square(y - target))
       tf.summary.scalar('loss', self.loss)
@@ -68,10 +72,13 @@ class DQN(object):
 
   def inference(self, inputs, trainable=True):
     with tf.name_scope('resize'):
-      resized = tf.image.resize_images(inputs, [84, 64])
+      resized = tf.image.resize_images(inputs, [53, 40])
+
+    with tf.name_scope('gray_scale'):
+      gray = tf.image.rgb_to_grayscale(resized)
 
     with tf.name_scope('conv1'):
-      conv = tf.contrib.layers.conv2d(resized, 32, stride=1, kernel_size=3,
+      conv = tf.contrib.layers.conv2d(gray, 16, stride=1, kernel_size=3,
         trainable=trainable,
         weights_initializer=tf.random_normal_initializer(stddev=0.006))
 
@@ -79,7 +86,7 @@ class DQN(object):
       pool = tf.contrib.layers.max_pool2d(conv, 2)
 
     with tf.name_scope('conv2'):
-      conv = tf.contrib.layers.conv2d(pool, 64, stride=1, kernel_size=3,
+      conv = tf.contrib.layers.conv2d(pool, 32, stride=1, kernel_size=3,
         trainable=trainable,
         weights_initializer=tf.variance_scaling_initializer())
 
@@ -90,7 +97,7 @@ class DQN(object):
       connect_shape = pool.get_shape().as_list()
       connect_size = connect_shape[1] * connect_shape[2] * connect_shape[3]
       fc = tf.contrib.layers.fully_connected(
-        tf.reshape(pool, [-1, connect_size]), 16, trainable=trainable,
+        tf.reshape(pool, [-1, connect_size]), 32, trainable=trainable,
         weights_initializer=tf.variance_scaling_initializer())
 
     with tf.name_scope('output'):
@@ -128,7 +135,9 @@ def epsilon_greedy(q_values, epsilon):
 
 class Trainer(object):
   def __init__(self, args):
-    self.replay_buffer = deque()
+    self.rewarded_buffer = deque()
+    self.non_rewarded_buffer = deque()
+
     self.max_epoches = args.max_epoches
     self.batch_size = args.batch_size
     self.display_epoches = args.display_epoches
@@ -155,21 +164,41 @@ class Trainer(object):
   def __del__(self):
     self.running = False
 
+  def get_batch(self, buffers):
+    batch = random.sample(buffers, self.batch_size)
+    state_batch = np.array([b[0] for b in batch])
+    action_batch = np.array([[1 if i == b[1] else 0 for i in range(4)]
+      for b in batch])
+    next_state_batch = np.array([b[2] for b in batch])
+    reward_batch = np.array([b[3] for b in batch])
+    done_batch = np.array([b[4] for b in batch])
+    return state_batch, action_batch, next_state_batch, reward_batch, done_batch
+
+  def shuffle(self, state_batch, action_batch,
+      next_state_batch, reward_batch, done_batch):
+    index = np.random.permutation(np.arange(len(state_batch)))[:self.batch_size]
+    return state_batch[index, :], \
+      action_batch[index, :], \
+      next_state_batch[index, :], \
+      reward_batch[index], \
+      done_batch[index]
+
   def train(self):
     logger.info('waiting for batch...')
-    while len(self.replay_buffer) < self.batch_size:
+    while len(self.non_rewarded_buffer) < self.batch_size or \
+        len(self.rewarded_buffer) < self.batch_size:
       pass
 
     logger.info('start training...')
     epoch = 0
     while True:
-      batch = random.sample(self.replay_buffer, self.batch_size)
-      state_batch = np.array([b[0] for b in batch])
-      action_batch = np.array([[1 if i == b[1] else 0 for i in range(4)]
-        for b in batch])
-      next_state_batch = np.array([b[2] for b in batch])
-      reward_batch = np.array([b[3] for b in batch])
-      done_batch = np.array([b[4] for b in batch])
+      rewarded = self.get_batch(self.rewarded_buffer)
+      non_rewarded = self.get_batch(self.non_rewarded_buffer)
+      state_batch = np.concatenate([rewarded[0], non_rewarded[0]], axis=0)
+      action_batch = np.concatenate([rewarded[1], non_rewarded[1]], axis=0)
+      next_state_batch = np.concatenate([rewarded[2], non_rewarded[2]], axis=0)
+      reward_batch = np.concatenate([rewarded[3], non_rewarded[3]], axis=0)
+      done_batch = np.concatenate([rewarded[4], non_rewarded[4]], axis=0)
 
       loss = self.dqn.train(self.sess,
         state_batch, action_batch, next_state_batch,
@@ -182,10 +211,15 @@ class Trainer(object):
           epoch, loss, np.max(q_values))
 
       if epoch == 0:
-        next_q_values = self.sess.run(self.dqn.next_q_values, feed_dict={
-          self.dqn.next_state: state_batch
-        })
-        logger.info('q values stddev: %s', str(np.std(next_q_values, axis=0)))
+        q_values, next_q_values = self.sess.run(
+          [self.dqn.next_q_values, self.dqn.q_values], feed_dict={
+            self.dqn.state: state_batch,
+            self.dqn.next_state: next_state_batch,
+          })
+        logger.info('q values mean: %s, stddev: %s',
+          str(np.mean(q_values, axis=0)), str(np.std(q_values, axis=0)))
+        logger.info('next q values mean: %s, stddev: %s',
+          str(np.mean(q_values, axis=0)), str(np.std(next_q_values, axis=0)))
 
       if epoch % self.save_epoches == 0 and epoch != 0 and self.saving:
         logger.info('saving model...')
@@ -204,10 +238,16 @@ class Trainer(object):
     self.dqn.update_target(self.sess)
 
   def add_step(self, step):
-    self.replay_buffer.append(step)
+    if step[3] != 0:
+      self.rewarded_buffer.append(step)
 
-    if len(self.replay_buffer) > self.replay_buffer_size:
-      self.replay_buffer.popleft()
+      if len(self.rewarded_buffer) > self.replay_buffer_size:
+        self.rewarded_buffer.popleft()
+    else:
+      self.non_rewarded_buffer.append(step)
+
+      if len(self.non_rewarded_buffer) > self.replay_buffer_size:
+        self.non_rewarded_buffer.popleft()
 
   def start(self):
     self.task = threading.Thread(target=self.train)
@@ -242,7 +282,7 @@ def run_episode(args, env):
         action = env.action_space.sample()
       else:
         action_prob = trainer.predict_action(state)
-        action = epsilon_greedy(action_prob, epsilon)
+        action = epsilon_greedy(action_prob[0], epsilon)
 
       next_state, reward, done, _ = env.step(action)
       total_reward += reward
@@ -267,7 +307,7 @@ def run_episode(args, env):
     if episode % args.decay_epsilon == 0 and episode != 0:
       epsilon *= 0.9
 
-    if episode % 20 == 0 and episode != 0:
+    if episode % args.decay_epsilon == 0 and episode != 0:
       random_chance *= 0.9
 
 
@@ -277,11 +317,11 @@ def main():
     help='render')
 
   parser.add_argument('--replay-buffer-size', dest='replay_buffer_size',
-    type=int, default=20000, help='max replay buffer size')
+    type=int, default=60000, help='max replay buffer size')
   parser.add_argument('--max-episodes', dest='max_episodes', type=int,
     default=10000, help='max episode to run')
   parser.add_argument('--update-frequency', dest='update_frequency',
-    type=int, default=50, help='update target vars per episode')
+    type=int, default=3, help='update target vars per episode')
   parser.add_argument('--decay-epsilon', dest='decay_epsilon',
     type=int, default=10, help='decay epsilon for epsilon greedy policy')
 
