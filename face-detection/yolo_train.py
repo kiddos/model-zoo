@@ -79,7 +79,8 @@ class YOLOFace(object):
       y_label = tf.gather(self.label_grids, y_index, axis=3)
       w_label = tf.gather(self.label_grids, w_index, axis=3)
       h_label = tf.gather(self.label_grids, h_index, axis=3)
-      tf.summary.image('indicator_prediction', ind)
+      tf.summary.image('indicator_prediction',
+        tf.gather(ind, [0], axis=3))
 
       num_obj = tf.reduce_sum(indicator)
       with tf.name_scope('indicator'):
@@ -133,7 +134,8 @@ class YOLOFace(object):
       valid_w = tf.gather(validation_logits, w_index, axis=3)
       valid_h = tf.gather(validation_logits, h_index, axis=3)
 
-      tf.summary.image('valid_indicator_prediction', valid_ind)
+      tf.summary.image('valid_indicator_prediction',
+        tf.gather(valid_ind, [0], axis=3))
 
     with tf.name_scope('evaluation'):
       self.indicator_accuracy, self.intersect_area = \
