@@ -761,7 +761,7 @@ def main():
     default=224, type=int, help='input size for inference mode')
   parser.add_argument('--test-output-size', dest='test_output_size',
     default=14, type=int, help='output size for inference mode')
-  parser.add_argument('--test-num_bounding-box', dest='test_num_bounding_box',
+  parser.add_argument('--test-num-bounding-box', dest='test_num_bounding_box',
     default=1, type=int, help='output size for inference mode')
 
   args = parser.parse_args()
