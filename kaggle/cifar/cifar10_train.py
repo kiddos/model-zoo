@@ -70,38 +70,38 @@ class CIFAR10Model(object):
 
   def inference_v0(self, inputs):
     with tf.name_scope('conv1'):
-      conv = tf.contrib.layers.conv2d(inputs, 32, stride=1, kernel_size=3,
-        weights_initializer=tf.random_normal_initializer(stddev=0.16))
+      conv = tf.contrib.layers.conv2d(inputs, 16, stride=1, kernel_size=3,
+        weights_initializer=tf.random_normal_initializer(stddev=0.06))
 
     with tf.name_scope('pool1'):
       pool = tf.contrib.layers.max_pool2d(conv, 2)
 
     with tf.name_scope('conv2'):
-      conv = self.multiple_conv(pool, 64)
+      conv = self.multiple_conv(pool, 32, multiples=0)
 
     with tf.name_scope('pool2'):
       pool = tf.contrib.layers.max_pool2d(conv, 2)
 
     with tf.name_scope('conv3'):
-      conv = self.multiple_conv(pool, 128)
+      conv = self.multiple_conv(pool, 64, multiples=0)
 
     with tf.name_scope('pool3'):
       pool = tf.contrib.layers.max_pool2d(conv, 2)
 
     with tf.name_scope('conv3'):
-      conv = self.multiple_conv(pool, 256, ksize=1)
+      conv = self.multiple_conv(pool, 128, ksize=1, multiples=0)
 
     with tf.name_scope('pool4'):
       pool = tf.contrib.layers.max_pool2d(conv, 2)
 
     with tf.name_scope('conv5'):
-      conv = self.multiple_conv(pool, 512, ksize=1)
+      conv = self.multiple_conv(pool, 256, ksize=1)
 
     with tf.name_scope('pool5'):
       pool = tf.contrib.layers.max_pool2d(conv, 2)
 
     with tf.name_scope('conv6'):
-      conv = self.multiple_conv(pool, 1024, ksize=1)
+      conv = self.multiple_conv(pool, 512, ksize=1)
 
     with tf.name_scope('drop6'):
       drop = tf.nn.dropout(pool, keep_prob=self.keep_prob)
