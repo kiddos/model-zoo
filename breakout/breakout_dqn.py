@@ -335,14 +335,14 @@ def main():
   parser.add_argument('--replay-buffer-size', dest='replay_buffer_size',
     type=int, default=60000, help='max replay buffer size')
   parser.add_argument('--max-episodes', dest='max_episodes', type=int,
-    default=10000, help='max episode to run')
+    default=2e6, help='max episode to run')
   parser.add_argument('--update-frequency', dest='update_frequency',
-    type=int, default=3, help='update target vars per episode')
+    type=int, default=50, help='update target vars per episode')
   parser.add_argument('--decay-epsilon', dest='decay_epsilon',
-    type=int, default=10, help='decay epsilon for epsilon greedy policy')
+    type=int, default=50, help='decay epsilon for epsilon greedy policy')
 
   parser.add_argument('--learning-rate', dest='learning_rate', type=float,
-    default=1e-3, help='learning rate for training')
+    default=1e-4, help='learning rate for training')
   parser.add_argument('--batch-size', dest='batch_size', type=int,
     default=32, help='batch size for training')
   parser.add_argument('--max-epoches', dest='max_epoches', type=int,
