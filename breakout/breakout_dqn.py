@@ -71,49 +71,27 @@ class DQN(object):
       shape=[None, 4])
 
   def inference(self, inputs, trainable=True):
-    with tf.name_scope('resize'):
-      resized = tf.image.resize_images(inputs, [105, 80])
-
-    with tf.name_scope('gray_scale'):
-      gray = tf.image.rgb_to_grayscale(resized)
+    with tf.name_scope('preprocess'):
+      cropped = tf.image.crop_to_bounding_box(inputs, 32, 8, 163, 144)
+      gray = tf.image.rgb_to_grayscale(cropped)
+      preprocessed = tf.image.resize_images(gray, [84, 84])
 
     with tf.name_scope('conv1'):
-      conv = tf.contrib.layers.conv2d(gray, 16, stride=1, kernel_size=3,
+      conv = tf.contrib.layers.conv2d(preprocessed, 16, stride=2, kernel_size=8,
         trainable=trainable,
-        weights_initializer=tf.random_normal_initializer(stddev=0.002))
-
-    with tf.name_scope('pool1'):
-      pool = tf.contrib.layers.max_pool2d(conv, 2)
+        weights_initializer=tf.random_normal_initializer(stddev=0.001))
 
     with tf.name_scope('conv2'):
-      conv = tf.contrib.layers.conv2d(pool, 32, stride=1, kernel_size=3,
+      conv = tf.contrib.layers.conv2d(conv, 32, stride=2, kernel_size=4,
         trainable=trainable,
         weights_initializer=tf.variance_scaling_initializer())
-
-    with tf.name_scope('pool2'):
-      pool = tf.contrib.layers.max_pool2d(conv, 2)
-
-    with tf.name_scope('conv3'):
-      conv = tf.contrib.layers.conv2d(pool, 64, stride=1, kernel_size=3,
-        trainable=trainable,
-        weights_initializer=tf.variance_scaling_initializer())
-
-    with tf.name_scope('pool3'):
-      pool = tf.contrib.layers.max_pool2d(conv, 2)
-
-    with tf.name_scope('conv4'):
-      conv = tf.contrib.layers.conv2d(pool, 128, stride=1, kernel_size=3,
-        trainable=trainable,
-        weights_initializer=tf.variance_scaling_initializer())
-
-    with tf.name_scope('pool4'):
-      pool = tf.contrib.layers.max_pool2d(conv, 2)
+      print(conv)
 
     with tf.name_scope('fully_connected'):
-      connect_shape = pool.get_shape().as_list()
+      connect_shape = conv.get_shape().as_list()
       connect_size = connect_shape[1] * connect_shape[2] * connect_shape[3]
       fc = tf.contrib.layers.fully_connected(
-        tf.reshape(pool, [-1, connect_size]), 256, trainable=trainable,
+        tf.reshape(conv, [-1, connect_size]), 256, trainable=trainable,
         weights_initializer=tf.variance_scaling_initializer())
 
     with tf.name_scope('output'):
@@ -289,16 +267,18 @@ def run_episode(args, env):
   random_chance = 0.8
   for episode in range(args.max_episodes + 1):
     state = env.reset()
+
     step = 0
     total_reward = 0
 
     trainer.update_target()
     while True:
-      if random.random() < random_chance:
-        action = env.action_space.sample()
-      else:
-        action_prob = trainer.predict_action(state)
-        action = epsilon_greedy(action_prob[0], epsilon)
+      #  if random.random() < random_chance:
+      #    action = env.action_space.sample()
+      #  else:
+      action_prob = trainer.predict_action(state)
+      action = epsilon_greedy(action_prob[0], epsilon)
+      #  action = np.argmax(action_prob[0, :])
 
       next_state, reward, done, _ = env.step(action)
       total_reward += reward
@@ -333,16 +313,16 @@ def main():
     help='render')
 
   parser.add_argument('--replay-buffer-size', dest='replay_buffer_size',
-    type=int, default=60000, help='max replay buffer size')
+    type=int, default=10000, help='max replay buffer size')
   parser.add_argument('--max-episodes', dest='max_episodes', type=int,
-    default=2e6, help='max episode to run')
+    default=2000000, help='max episode to run')
   parser.add_argument('--update-frequency', dest='update_frequency',
-    type=int, default=50, help='update target vars per episode')
+    type=int, default=10, help='update target vars per episode')
   parser.add_argument('--decay-epsilon', dest='decay_epsilon',
-    type=int, default=50, help='decay epsilon for epsilon greedy policy')
+    type=int, default=10, help='decay epsilon for epsilon greedy policy')
 
   parser.add_argument('--learning-rate', dest='learning_rate', type=float,
-    default=1e-4, help='learning rate for training')
+    default=1e-3, help='learning rate for training')
   parser.add_argument('--batch-size', dest='batch_size', type=int,
     default=32, help='batch size for training')
   parser.add_argument('--max-epoches', dest='max_epoches', type=int,
