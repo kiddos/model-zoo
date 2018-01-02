@@ -8,11 +8,10 @@ from argparse import ArgumentParser
 from collections import deque
 
 
-HIDDEN_SIZE = 128
 LEARNING_RATE = 1e-3
 TAU = 1e0
-DISCOUNT_FACTOR = 0.99
-UPDATE_FREQ = 50
+DISCOUNT_FACTOR = 0.9
+UPDATE_FREQ = 200
 
 
 logging.basicConfig()
@@ -34,8 +33,8 @@ class QFunction(object):
 
     with tf.name_scope('loss'):
       not_done = tf.cast(tf.logical_not(self.done), tf.float32)
-      target = self.reward + not_done * self.next_q_values
-      train_q = tf.reduce_sum(self.action * self.train_q_value, axis=1)
+      target = self.reward + DISCOUNT_FACTOR * not_done * self.next_q_values
+      train_q = tf.reduce_max(self.action * self.train_q_value, axis=1)
       self.loss = tf.reduce_mean(tf.square(target - train_q))
     with tf.name_scope('train_ops'):
       optimizer = tf.train.GradientDescentOptimizer(self.learning_rate)
@@ -55,34 +54,19 @@ class QFunction(object):
 
   def _inference(self, trainable):
     with tf.name_scope('hidden1'):
-      w = tf.get_variable(name='iw', shape=[4, HIDDEN_SIZE],
-        initializer=tf.random_normal_initializer(stddev=np.sqrt(0.1)),
-        trainable=trainable)
-      b = tf.get_variable(name='ib', shape=[HIDDEN_SIZE],
-        initializer=tf.constant_initializer(value=1e-3),
-        trainable=trainable)
-      h1 = tf.nn.tanh(tf.matmul(self.state, w) + b)
+      h = tf.contrib.layers.fully_connected(self.state, 32,
+        trainable=trainable,
+        weights_initializer=tf.random_normal_initializer(stddev=0.1))
 
     with tf.name_scope('hidden2'):
-      w = tf.get_variable(name='hw',
-        shape=[HIDDEN_SIZE, HIDDEN_SIZE],
-        initializer=tf.random_normal_initializer(
-          stddev=np.sqrt(2.0 / HIDDEN_SIZE)),
-        trainable=trainable)
-      b = tf.get_variable(name='hb', shape=[HIDDEN_SIZE],
-        initializer=tf.constant_initializer(value=1e-3),
-        trainable=trainable)
-      h2 = tf.nn.tanh(tf.matmul(h1, w) + b)
+      h = tf.contrib.layers.fully_connected(h, 32,
+        trainable=trainable,
+        weights_initializer=tf.variance_scaling_initializer())
 
     with tf.name_scope('output'):
-      w = tf.get_variable(name='ow', shape=[HIDDEN_SIZE, 2],
-        initializer=tf.random_normal_initializer(stddev=np.sqrt(2.0 /
-          HIDDEN_SIZE)),
-        trainable=trainable)
-      b = tf.get_variable(name='ob', shape=[2],
-        initializer=tf.constant_initializer(value=1e-3),
-        trainable=trainable)
-      q_value = tf.matmul(h2, w) + b
+      q_value = tf.contrib.layers.fully_connected(h, 2,
+        trainable=trainable, activation_fn=None,
+        weights_initializer=tf.variance_scaling_initializer())
     return q_value
 
   def _setup_update_ops(self):
@@ -145,7 +129,7 @@ def setup_checkpoint(model_name):
 
 
 def train(model_name,
-    max_epoch, display_epoch, save_epoch, max_step, batch_size,
+    max_epoch, display_epoch, display_episode, save_epoch, max_step, batch_size,
     replay_buffer_size,
     render=False, saving=False):
   q_function = QFunction()
@@ -169,10 +153,10 @@ def train(model_name,
     train_epoch = 0
     replay_buffer = deque()
     logger.info('start training...')
-    for epoch in range(max_epoch):
+    for epoch in range(max_epoch + 1):
       state = env.reset()
       total_reward = 0
-      if epoch % display_epoch == 0 and epoch != 0:
+      if epoch % display_episode == 0 and epoch != 0:
         for step in range(max_step):
           q_value = q_function.predict(sess, state)
           action = np.argmax(q_value)
@@ -192,13 +176,8 @@ def train(model_name,
           q_value = q_function.predict(sess, state)
           action = epsilon_greedy(q_value, epsilon)
           next_state, reward, done, _ = env.step(action)
-          #  if done:
-          #    reward = -1000
           replay_buffer.append((state, action, reward, next_state, done))
           state = next_state
-
-          if train_epoch % save_epoch == 0:
-            epsilon *= 0.9
 
           if len(replay_buffer) >= batch_size:
             state_batch = []
@@ -206,6 +185,10 @@ def train(model_name,
             reward_batch = []
             next_state_batch = []
             done_batch = []
+
+            if train_epoch % save_epoch == 0 and train_epoch != 0:
+              epsilon *= 0.9
+
             for i in range(batch_size):
               batch = random.choice(replay_buffer)
               state_batch.append(batch[0])
@@ -221,7 +204,8 @@ def train(model_name,
             done_batch = np.array(done_batch)
 
             next_q_values = q_function.predict_batch(sess, next_state_batch)
-            next_q_values = next_q_values[action_batch == 1]
+            #  next_q_values = next_q_values[action_batch == 1]
+            next_q_values = np.max(next_q_values, axis=1)
             loss = q_function.train(sess, state_batch, action_batch,
               reward_batch, done_batch, next_q_values)
             train_epoch += 1
@@ -237,8 +221,8 @@ def train(model_name,
               replay_buffer.pop()
 
             if train_epoch % display_epoch == 0:
-              logger.info('%d. episode: %d, loss: %f | QMax: %f' %
-                (train_epoch, epoch, loss, np.amax(next_q_values)))
+              logger.info('%d. episode: %d, loss: %f | QMax: %f, epsilon: %f' %
+                (train_epoch, epoch, loss, np.amax(next_q_values), epsilon))
 
           if done:
             break
@@ -247,15 +231,15 @@ def train(model_name,
 def main():
   parser = ArgumentParser()
   parser.add_argument('--max-epoch', dest='max_epoch',
-    default=10000, type=int, help='max epoch for training')
-  parser.add_argument('--display-epoch', dest='display_epoch',
-    default=50, type=int, help='epoch for display')
+    default=60000, type=int, help='max epoch for training')
+  parser.add_argument('--display-episode', dest='display_episode',
+    default=10, type=int, help='episode for display')
   parser.add_argument('--save-epoch', dest='save_epoch',
-    default=1000, type=int, help='epoch for saving session')
+    default=2000, type=int, help='epoch for saving session')
   parser.add_argument('--max-step', dest='max_step',
     default=500, type=int, help='max step for each episode')
   parser.add_argument('--batch-size', dest='batch_size',
-    default=64, type=int, help='batch size')
+    default=128, type=int, help='batch size')
   parser.add_argument('--replay-buffer-size', dest='replay_buffer_size',
     default=1000, type=int, help='replay buffer size')
   parser.add_argument('--render', dest='render',
@@ -264,10 +248,14 @@ def main():
     default=False, type=bool, help='whether to save model')
   parser.add_argument('--model-name', dest='model_name',
     default='cart_dqn', help='model name')
+  parser.add_argument('--display-epoch', dest='display_epoch',
+    default=200, type=int, help='epoch for display')
   args = parser.parse_args()
 
   train(args.model_name,
-    args.max_epoch, args.display_epoch, args.save_epoch, args.max_step,
+    args.max_epoch,
+    args.display_epoch, args.display_episode,
+    args.save_epoch, args.max_step,
     args.batch_size, args.replay_buffer_size,
     render=args.render, saving=args.saving)
 

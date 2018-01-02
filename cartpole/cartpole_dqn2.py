@@ -14,12 +14,12 @@ from argparse import ArgumentParser
 
 coloredlogs.install()
 logging.basicConfig()
-logger = logging.getLogger('breakout')
+logger = logging.getLogger('cartpole')
 logger.setLevel(logging.INFO)
 
 
 class DQN(object):
-  def __init__(self, learning_rate=1e-3):
+  def __init__(self, learning_rate=1e-3, discount_factor=0.99):
     self._setup_inputs()
 
     with tf.variable_scope('train'):
@@ -41,7 +41,7 @@ class DQN(object):
         self.copy_ops.append(tf.assign(target_vars[i], train_vars[i]))
 
     with tf.name_scope('loss'):
-      target = self.reward + 0.9 * \
+      target = self.reward + discount_factor * \
         tf.cast(tf.logical_not(self.done), tf.float32) * \
         tf.reduce_max(next_q_values, axis=1)
       y = tf.reduce_sum(q_values * self.action_mask, axis=1)
@@ -52,7 +52,9 @@ class DQN(object):
       self.learning_rate = tf.Variable(learning_rate, trainable=False,
         name='learning_rate')
       optimizer = tf.train.AdamOptimizer(self.learning_rate)
-      self.train_ops = optimizer.minimize(self.loss)
+      gradients = optimizer.compute_gradients(self.loss)
+      gradients = [(tf.clip_by_value(g, -1, 1), v) for g, v in gradients]
+      self.train_ops = optimizer.apply_gradients(gradients)
 
       tf.summary.scalar('learning_rate', self.learning_rate)
 
@@ -69,14 +71,14 @@ class DQN(object):
 
   def inference(self, inputs, trainable=True):
     with tf.name_scope('hidden1'):
-      fc = tf.contrib.layers.fully_connected(inputs, 128, trainable=trainable,
-        activation_fn=tf.nn.tanh,
+      fc = tf.contrib.layers.fully_connected(inputs, 32, trainable=trainable,
+        activation_fn=tf.nn.relu,
         weights_initializer=tf.random_normal_initializer(stddev=0.1))
 
-    with tf.name_scope('hidden2'):
-      fc = tf.contrib.layers.fully_connected(fc, 128, trainable=trainable,
-        activation_fn=tf.nn.tanh,
-        weights_initializer=tf.variance_scaling_initializer())
+    #  with tf.name_scope('hidden2'):
+    #    fc = tf.contrib.layers.fully_connected(fc, 128, trainable=trainable,
+    #      activation_fn=tf.nn.relu,
+    #      weights_initializer=tf.variance_scaling_initializer())
 
     with tf.name_scope('output'):
       outputs = tf.contrib.layers.fully_connected(fc, 2, activation_fn=None,
@@ -105,10 +107,14 @@ class DQN(object):
 
 
 def epsilon_greedy(q_values, epsilon):
-  max_p = np.argmax(q_values)
-  prob = np.ones(shape=[2]) * epsilon / 2.0
-  prob[max_p] += 1.0 - epsilon
-  return np.random.choice(np.arange(2), p=prob)
+  if random.random() < epsilon:
+    return random.randint(0, 1)
+  else:
+    return np.argmax(q_values[0, :])
+  #  max_p = np.argmax(q_values)
+  #  prob = np.ones(shape=[2]) * epsilon / 2.0
+  #  prob[max_p] += 1.0 - epsilon
+  #  return np.random.choice(np.arange(2), p=prob)
 
 
 class Trainer(object):
@@ -127,7 +133,7 @@ class Trainer(object):
         os.mkdir('dqn')
       self.checkpoint = os.path.join('dqn', 'dqn')
 
-    self.dqn = DQN(args.learning_rate)
+    self.dqn = DQN(args.learning_rate, args.discount_factor)
     self.saver = tf.train.Saver()
 
     config = tf.ConfigProto()
@@ -201,6 +207,7 @@ class Trainer(object):
 
 def run_episode(args, env):
   trainer = Trainer(args)
+  trainer.update_target()
   trainer.start()
 
   def stop(signum, frame):
@@ -225,37 +232,54 @@ def run_episode(args, env):
         env.render()
       state = next_state
       if done:
-        logger.info('%d. episode, final step: %d, epsilon: %f, total reward: %f',
-          episode, step, epsilon, total_reward)
+        if episode % args.display_episode == 0:
+          logger.info('%d. episode, step: %d, epsilon: %f, total: %f, buffer: %d',
+            episode, step, epsilon, total_reward, len(trainer.replay_buffer))
         sys.stdout.flush()
         break
 
       step += 1
 
-    if episode % 50 == 0 and episode != 0:
+    if episode % args.decay_epsilon == 0 and episode != 0:
       epsilon *= 0.9
+      if epsilon <= args.min_epsilon:
+        epsilon = args.min_epsilon
 
-    trainer.update_target()
+    if episode % args.update_frequency == 0:
+      trainer.update_target()
     if not trainer.running:
       break
+
+  trainer.running = False
 
 
 def main():
   parser = ArgumentParser()
   parser.add_argument('--render', dest='render', default='True',
     help='render')
+  parser.add_argument('--decay-epsilon', dest='decay_epsilon', default=50,
+    type=int, help='decay epsilon')
+  parser.add_argument('--display-episode', dest='display_episode', default=1,
+    type=int, help='display episode')
   parser.add_argument('--replay-buffer-size', dest='replay_buffer_size',
-    type=int, default=20000, help='max replay buffer size')
+    type=int, default=30000, help='max replay buffer size')
+  parser.add_argument('--update-frequency', dest='update_frequency',
+    default=50, type=int, help='update frequency')
+  parser.add_argument('--min-epsilon', dest='min_epsilon', default=0.01,
+    type=float, help='min epsilon')
+  parser.add_argument('--discount-factor', dest='discount_factor', default=0.9,
+    type=float, help='discount factor')
+
   parser.add_argument('--learning-rate', dest='learning_rate', type=float,
-    default=1e-4, help='learning rate for training')
+    default=1e-3, help='learning rate for training')
   parser.add_argument('--batch-size', dest='batch_size', type=int,
-    default=64, help='batch size for training')
+    default=512, help='batch size for training')
   parser.add_argument('--max-episodes', dest='max_episodes', type=int,
-    default=10000, help='max episode to run')
+    default=100000, help='max episode to run')
   parser.add_argument('--max-epoches', dest='max_epoches', type=int,
     default=200000, help='max epoches to train model')
   parser.add_argument('--display-epoches', dest='display_epoches', type=int,
-    default=100, help='epoches to display training result')
+    default=500, help='epoches to display training result')
   parser.add_argument('--save-epoches', dest='save_epoches', type=int,
     default=10000, help='epoches to save training result')
   parser.add_argument('--summary-epoches', dest='summary_epoches', type=int,
@@ -268,7 +292,7 @@ def main():
     default='False', help='rather to save the training result')
   args = parser.parse_args()
 
-  env = gym.make('CartPole-v1')
+  env = gym.make('CartPole-v0')
   run_episode(args, env)
 
 
