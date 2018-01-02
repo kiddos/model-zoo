@@ -411,40 +411,34 @@ class YOLOFace(object):
   def inference_v5(self, inputs):
     ksize = 3
     with tf.name_scope('conv1'):
-      conv = tf.contrib.layers.conv2d(inputs, 8, stride=1, kernel_size=ksize,
+      conv = tf.contrib.layers.conv2d(inputs, 12, stride=1, kernel_size=ksize,
         weights_initializer=tf.random_normal_initializer(stddev=0.006))
 
     with tf.name_scope('pool1'):
       pool = tf.contrib.layers.max_pool2d(conv, 2)
 
     with tf.name_scope('conv2'):
-      conv = self.multiple_conv(16, ksize, pool, multiple=1)
+      conv = self.multiple_conv(24, ksize, pool, multiple=0)
 
     with tf.name_scope('pool2'):
       pool = tf.contrib.layers.max_pool2d(conv, 2)
 
     with tf.name_scope('conv3'):
-      conv = self.multiple_conv(32, ksize, pool, multiple=1)
+      conv = self.multiple_conv(48, ksize, pool, multiple=1)
 
     with tf.name_scope('pool3'):
       pool = tf.contrib.layers.max_pool2d(conv, 2)
 
     with tf.name_scope('conv4'):
-      conv = self.multiple_conv(64, ksize, pool)
+      conv = self.multiple_conv(96, ksize, pool)
 
     with tf.name_scope('pool4'):
       pool = tf.contrib.layers.max_pool2d(conv, 2)
 
     with tf.name_scope('conv5'):
-      conv = self.multiple_conv(128, ksize, pool)
+      conv = self.multiple_conv(192, ksize, pool, multiple=3)
 
-    with tf.name_scope('pool5'):
-      pool = tf.contrib.layers.max_pool2d(conv, 2)
-
-    with tf.name_scope('conv6'):
-      conv = self.multiple_conv(256, ksize, pool, multiple=3)
-
-    with tf.name_scope('drop6'):
+    with tf.name_scope('drop5'):
       drop = tf.nn.dropout(conv, keep_prob=self.keep_prob)
 
     with tf.name_scope('output'):
@@ -456,14 +450,14 @@ class YOLOFace(object):
   def inference_v6(self, inputs):
     ksize = 3
     with tf.name_scope('conv1'):
-      conv = tf.contrib.layers.conv2d(inputs, 16, stride=1, kernel_size=ksize,
+      conv = tf.contrib.layers.conv2d(inputs, 8, stride=1, kernel_size=ksize,
         weights_initializer=tf.random_normal_initializer(stddev=0.006))
 
     with tf.name_scope('pool1'):
       pool = tf.contrib.layers.max_pool2d(conv, 2)
 
     with tf.name_scope('conv2'):
-      conv = tf.contrib.layers.conv2d(pool, 32, stride=1, kernel_size=ksize,
+      conv = tf.contrib.layers.conv2d(pool, 16, stride=1, kernel_size=ksize,
         weights_initializer=tf.variance_scaling_initializer())
 
     with tf.name_scope('pool2'):
@@ -476,13 +470,13 @@ class YOLOFace(object):
       pool = tf.contrib.layers.max_pool2d(conv, 2)
 
     with tf.name_scope('conv4'):
-      conv = self.multiple_conv(256, ksize, pool, multiple=1)
+      conv = self.multiple_conv(192, ksize, pool)
 
     with tf.name_scope('pool4'):
       pool = tf.contrib.layers.max_pool2d(conv, 2)
 
     with tf.name_scope('conv5'):
-      conv = self.multiple_conv(512, ksize, pool, multiple=1)
+      conv = self.multiple_conv(384, ksize, pool, multiple=3)
 
     with tf.name_scope('drop5'):
       drop = tf.nn.dropout(conv, keep_prob=self.keep_prob)
@@ -703,6 +697,7 @@ def inference(args):
   with tf.Session(config=config) as sess:
     sess.run(tf.global_variables_initializer())
 
+    evalutated = False
     try:
       import cv2
       camera = cv2.VideoCapture(0)
@@ -714,7 +709,13 @@ def inference(args):
         img = fit(Image.fromarray(img), yolo.input_size)
 
         start = time.time()
-        yolo.predict(sess, img)
+        output = yolo.predict(sess, img)
+        if not evalutated:
+          logger.info('output mean: %s',
+            np.mean(np.reshape(output, [-1, 5]), axis=0))
+          logger.info('output stddev: %s',
+            np.std(np.reshape(output, [-1, 5]), axis=0))
+          evalutated = True
         passed = time.time() - start
         total_time += passed
         count += 1
