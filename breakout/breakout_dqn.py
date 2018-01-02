@@ -20,7 +20,7 @@ logger.setLevel(logging.INFO)
 
 
 class DQN(object):
-  def __init__(self, learning_rate=1e-3, discount_factor=0.99):
+  def __init__(self, learning_rate=1e-4, discount_factor=0.99):
     self._setup_inputs()
 
     with tf.variable_scope('train'):
@@ -317,12 +317,12 @@ def main():
   parser.add_argument('--max-episodes', dest='max_episodes', type=int,
     default=2000000, help='max episode to run')
   parser.add_argument('--update-frequency', dest='update_frequency',
-    type=int, default=10, help='update target vars per episode')
+    type=int, default=100, help='update target vars per episode')
   parser.add_argument('--decay-epsilon', dest='decay_epsilon',
-    type=int, default=10, help='decay epsilon for epsilon greedy policy')
+    type=int, default=100, help='decay epsilon for epsilon greedy policy')
 
   parser.add_argument('--learning-rate', dest='learning_rate', type=float,
-    default=1e-3, help='learning rate for training')
+    default=1e-4, help='learning rate for training')
   parser.add_argument('--batch-size', dest='batch_size', type=int,
     default=32, help='batch size for training')
   parser.add_argument('--max-epoches', dest='max_epoches', type=int,
