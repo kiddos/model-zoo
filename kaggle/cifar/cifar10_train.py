@@ -16,7 +16,7 @@ logger.setLevel(logging.INFO)
 
 
 class CIFAR10Model(object):
-  def __init__(self, inference, learning_rate=1e-3):
+  def __init__(self, inference, learning_rate=1e-3, lambda_reg=1e-4):
     with tf.name_scope('inputs'):
       self._setup_inputs()
       tf.summary.image('input_images', self.input_images)
@@ -35,11 +35,21 @@ class CIFAR10Model(object):
     with tf.name_scope('loss'):
       self.loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(
         logits=logits, labels=self.labels))
+
+      train_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, 'cifar10')
+      assert len(train_vars) != 0
+      reg = 0
+      for i in range(len(train_vars)):
+        reg += tf.reduce_sum(tf.square(train_vars[i]))
+
+      self.loss += lambda_reg * reg
       tf.summary.scalar('loss', self.loss)
 
     with tf.name_scope('optimization'):
       self.learning_rate = tf.Variable(learning_rate, trainable=False,
         name='learning_rate')
+      self.decay_lr = tf.assign(self.learning_rate,
+        self.learning_rate * 0.9, name='decay_learning_rate')
       tf.summary.scalar('learning_rate', self.learning_rate)
       optimizer = tf.train.GradientDescentOptimizer(self.learning_rate)
       self.train_ops = optimizer.minimize(self.loss)
@@ -70,47 +80,87 @@ class CIFAR10Model(object):
 
   def inference_v0(self, inputs):
     with tf.name_scope('conv1'):
-      conv = tf.contrib.layers.conv2d(inputs, 16, stride=1, kernel_size=3,
-        weights_initializer=tf.random_normal_initializer(stddev=0.06))
+      conv = tf.contrib.layers.conv2d(inputs, 64, stride=1, kernel_size=3,
+        weights_initializer=tf.random_normal_initializer(stddev=0.006))
 
     with tf.name_scope('pool1'):
       pool = tf.contrib.layers.max_pool2d(conv, 2)
 
+    with tf.name_scope('drop2'):
+      drop = tf.nn.dropout(pool, keep_prob=self.keep_prob)
+
     with tf.name_scope('conv2'):
-      conv = self.multiple_conv(pool, 32, multiples=0)
+      conv = self.multiple_conv(drop, 128, multiples=1)
 
     with tf.name_scope('pool2'):
       pool = tf.contrib.layers.max_pool2d(conv, 2)
 
     with tf.name_scope('conv3'):
-      conv = self.multiple_conv(pool, 64, multiples=0)
+      conv = self.multiple_conv(drop, 256, multiples=1)
 
     with tf.name_scope('pool3'):
       pool = tf.contrib.layers.max_pool2d(conv, 2)
 
+    with tf.name_scope('conv4'):
+      conv = self.multiple_conv(drop, 512, multiples=1)
+
+    with tf.name_scope('drop4'):
+      drop = tf.nn.dropout(conv, keep_prob=self.keep_prob)
+
+    with tf.name_scope('fully_connected'):
+      connect_shape = drop.get_shape().as_list()
+      connect_size = connect_shape[1] * connect_shape[2] * connect_shape[3]
+      fc = tf.contrib.layers.fully_connected(
+        tf.reshape(drop, [-1, connect_size]), 128,
+        weights_initializer=tf.variance_scaling_initializer())
+
+    with tf.name_scope('output'):
+      logits = tf.contrib.layers.fully_connected(fc, 10,
+        activation_fn=None,
+        weights_initializer=tf.variance_scaling_initializer())
+      output = tf.nn.softmax(logits, name='prediction')
+    return logits, output
+
+  def inference_v1(self, inputs):
+    with tf.name_scope('conv1'):
+      conv = tf.contrib.layers.conv2d(inputs, 96, stride=1, kernel_size=5,
+        weights_initializer=tf.random_normal_initializer(stddev=0.006))
+
+    with tf.name_scope('pool1'):
+      pool = tf.contrib.layers.max_pool2d(conv, 96, padding='SAME')
+
+    with tf.name_scope('conv2'):
+      conv = self.multiple_conv(pool, 192, multiples=0, ksize=3)
+
+    with tf.name_scope('pool2'):
+      pool = tf.contrib.layers.max_pool2d(conv, 4, padding='SAME')
+
     with tf.name_scope('conv3'):
-      conv = self.multiple_conv(pool, 128, ksize=1, multiples=0)
+      conv = self.multiple_conv(pool, 192, multiples=0, ksize=3)
+
+    with tf.name_scope('pool3'):
+      pool = tf.contrib.layers.max_pool2d(conv, 4, padding='SAME')
+
+    with tf.name_scope('conv4'):
+      conv = self.multiple_conv(pool, 192, multiples=1, ksize=1)
 
     with tf.name_scope('pool4'):
-      pool = tf.contrib.layers.max_pool2d(conv, 2)
+      pool = tf.contrib.layers.max_pool2d(conv, 4, padding='SAME')
 
     with tf.name_scope('conv5'):
-      conv = self.multiple_conv(pool, 256, ksize=1)
+      conv = self.multiple_conv(pool, 192, multiples=1, ksize=1)
 
-    with tf.name_scope('pool5'):
+    with tf.name_scope('pool3'):
       pool = tf.contrib.layers.max_pool2d(conv, 2)
 
-    with tf.name_scope('conv6'):
-      conv = self.multiple_conv(pool, 512, ksize=1)
-
-    with tf.name_scope('drop6'):
+    with tf.name_scope('drop4'):
       drop = tf.nn.dropout(pool, keep_prob=self.keep_prob)
 
     with tf.name_scope('output'):
-      logits = tf.contrib.layers.conv2d(drop, 10, stride=1, kernel_size=1,
-        activation_fn=None,
+      logits = tf.contrib.layers.conv2d(drop, 10,
+        stride=1, kernel_size=1,
         weights_initializer=tf.variance_scaling_initializer())
-      logits = tf.reshape(logits, [-1, 10], name='logits')
+      logits = tf.reshape(logits, [-1, 10])
       output = tf.nn.softmax(logits, name='prediction')
     return logits, output
 
@@ -150,7 +200,10 @@ def train(args):
   cifar10_data = CIFAR10Data(args.dbname)
   training_data, training_label = cifar10_data.get_training_data()
   valid_data, valid_label = cifar10_data.get_validation_data()
-  #  test_data, test_lable = cifar10_data.get_test_data()
+  training_data = np.concatenate([training_data, valid_data], axis=0)
+  training_label = np.concatenate([training_label, valid_label], axis=0)
+
+  valid_data, valid_label = cifar10_data.get_test_data()
 
   logger.info('training data: %s', str(training_data.shape))
   logger.info('validation data: %s', str(valid_data.shape))
@@ -173,10 +226,16 @@ def train(args):
     training_size = len(training_data)
     valid_size = len(valid_data)
     valid_index = 0
+    offset = 0
     for epoch in range(args.max_epoches + 1):
-      offset = epoch % (training_size - args.batch_size)
       training_data_batch = training_data[offset:offset+args.batch_size, :]
       training_label_batch = training_label[offset:offset+args.batch_size, :]
+
+      offset += args.batch_size
+      if offset >= training_size - args.batch_size and offset < training_size:
+        offset = training_size - args.batch_size
+      elif offset >= training_size:
+        offset = 0
 
       if epoch % args.display_epoches == 0:
         to = valid_index + args.batch_size
@@ -218,6 +277,9 @@ def train(args):
         })
         summary_writer.add_summary(summary, global_step=epoch)
 
+      if epoch % args.decay_epoches == 0 and epoch != 0:
+        sess.run(model.decay_lr)
+
 
 def main():
   parser = ArgumentParser()
@@ -229,7 +291,7 @@ def main():
     default='inference_v0', help='inference function to use')
 
   parser.add_argument('--learning-rate', dest='learning_rate', type=float,
-    default=1e-3, help='learning rate for training')
+    default=1e-5, help='learning rate for training')
   parser.add_argument('--batch-size', dest='batch_size', type=int,
     default=32, help='batch size for training')
   parser.add_argument('--max-epoches', dest='max_epoches', type=int,
@@ -241,7 +303,7 @@ def main():
   parser.add_argument('--summary-epoches', dest='summary_epoches', type=int,
     default=10, help='epoches to save training summary')
   parser.add_argument('--decay-epoches', dest='decay_epoches', type=int,
-    default=10000, help='epoches to decay learning rate for training')
+    default=20000, help='epoches to decay learning rate for training')
   parser.add_argument('--keep-prob', dest='keep_prob', type=float,
     default=0.8, help='keep probability for dropout')
   parser.add_argument('--saving', dest='saving', type=str,
