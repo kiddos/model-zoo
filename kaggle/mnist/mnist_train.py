@@ -230,8 +230,6 @@ def train(args):
     training_data = np.concatenate([training_data, validation_data], axis=0)
     training_label = np.concatenate([training_label, validation_label], axis=0)
 
-  train_size = len(training_data)
-
   model = MNIST(args.inference, learning_rate=args.learning_rate)
 
   config = tf.ConfigProto()
@@ -254,12 +252,18 @@ def train(args):
     logger.info('training data: %s', str(training_data.shape))
     logger.info('training label: %s', str(training_label.shape))
 
+    training_size = len(training_data)
     total_time = 0
+    offset = 0
     for epoch in range(args.max_epoches + 1):
       # preprare data
-      offset = epoch % (train_size - args.batch_size)
       data_batch = training_data[offset:offset+args.batch_size, :]
       label_batch = training_label[offset:offset+args.batch_size, :]
+      offset += args.batch_size
+      if offset >= training_size - args.batch_size and offset < training_size:
+        offset = training_size - args.batch_size
+      elif offset >= training_size:
+        offset = 0
 
       if epoch % args.display_epoches == 0:
         offset = validation_index
