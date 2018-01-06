@@ -111,7 +111,7 @@ class CIFAR10Model(object):
       connect_shape = drop.get_shape().as_list()
       connect_size = connect_shape[1] * connect_shape[2] * connect_shape[3]
       fc = tf.contrib.layers.fully_connected(
-        tf.reshape(drop, [-1, connect_size]), 128,
+        tf.reshape(drop, [-1, connect_size]), 1024,
         weights_initializer=tf.variance_scaling_initializer())
 
     with tf.name_scope('output'):
@@ -291,11 +291,11 @@ def main():
     default='inference_v0', help='inference function to use')
 
   parser.add_argument('--learning-rate', dest='learning_rate', type=float,
-    default=1e-5, help='learning rate for training')
+    default=1e-3, help='learning rate for training')
   parser.add_argument('--batch-size', dest='batch_size', type=int,
-    default=32, help='batch size for training')
+    default=64, help='batch size for training')
   parser.add_argument('--max-epoches', dest='max_epoches', type=int,
-    default=100000, help='max epoches to train')
+    default=300000, help='max epoches to train')
   parser.add_argument('--display-epoches', dest='display_epoches', type=int,
     default=10, help='epoches to display training result')
   parser.add_argument('--save-epoches', dest='save_epoches', type=int,
