@@ -581,9 +581,9 @@ def train(args):
   with tf.Session(config=config) as sess:
     sess.run(tf.global_variables_initializer())
 
+    offset = 0
     total_time = 0
     for epoch in range(args.max_epoches + 1):
-      offset = epoch % (training_data_size - args.batch_size)
       to = offset + args.batch_size
 
       training_data_batch = training_data[offset:to, :]
@@ -599,10 +599,10 @@ def train(args):
           str(np.std(prediction.reshape([-1, yolo.output_channel]), axis=0)))
 
       if epoch % args.display_epoches == 0:
-        offset = valid_index
-        to = valid_index + args.batch_size
-        valid_data_batch = valid_data[offset:to, :]
-        valid_label_batch = valid_label[offset:to, :]
+        valid_offset = valid_index
+        to = valid_offset + args.batch_size
+        valid_data_batch = valid_data[valid_offset:to, :]
+        valid_label_batch = valid_label[valid_offset:to, :]
 
         losses_tensor = [yolo.loss, yolo.ind_loss, yolo.no_obj_loss,
           yolo.coord_loss, yolo.size_loss,
@@ -640,10 +640,10 @@ def train(args):
 
       if epoch % args.summary_epoches == 0 and epoch != 0 and \
           args.saving == 'True':
-        offset = valid_index
+        valid_offset = valid_index
         to = valid_index + args.batch_size
-        valid_data_batch = valid_data[offset:to, :]
-        valid_label_batch = valid_label[offset:to, :]
+        valid_data_batch = valid_data[valid_offset:to, :]
+        valid_label_batch = valid_label[valid_offset:to, :]
 
         summary = sess.run(yolo.summary, feed_dict={
           yolo.input_images: training_data_batch,
@@ -666,6 +666,13 @@ def train(args):
       if epoch % args.decay_epoches == 0 and epoch != 0:
         logger.info('decay learning rate...')
         sess.run(yolo.decay_learning_rate)
+
+      offset += args.batch_size
+      if offset >= training_data_size - args.batch_size and \
+          offset < training_data_size:
+        offset = training_data_size - args.batch_size
+      elif offset >= training_data_size:
+        offset = 0
 
 
 def fit(original, size):
