@@ -90,13 +90,13 @@ class CIFAR10Model(object):
       drop = tf.nn.dropout(pool, keep_prob=self.keep_prob)
 
     with tf.name_scope('conv2'):
-      conv = self.multiple_conv(drop, 128, multiples=1)
+      conv = self.multiple_conv(drop, 128, multiples=0)
 
     with tf.name_scope('pool2'):
       pool = tf.contrib.layers.max_pool2d(conv, 2)
 
     with tf.name_scope('conv3'):
-      conv = self.multiple_conv(drop, 256, multiples=1)
+      conv = self.multiple_conv(drop, 256, multiples=0)
 
     with tf.name_scope('pool3'):
       pool = tf.contrib.layers.max_pool2d(conv, 2)
@@ -123,37 +123,37 @@ class CIFAR10Model(object):
 
   def inference_v1(self, inputs):
     with tf.name_scope('conv1'):
-      conv = tf.contrib.layers.conv2d(inputs, 96, stride=1, kernel_size=5,
+      conv = tf.contrib.layers.conv2d(inputs, 256, stride=1, kernel_size=5,
         weights_initializer=tf.random_normal_initializer(stddev=0.006))
 
     with tf.name_scope('pool1'):
-      pool = tf.contrib.layers.max_pool2d(conv, 96, padding='SAME')
+      pool = tf.contrib.layers.max_pool2d(conv, 2)
 
     with tf.name_scope('conv2'):
-      conv = self.multiple_conv(pool, 192, multiples=0, ksize=3)
+      conv = self.multiple_conv(pool, 384, multiples=1, ksize=3)
 
     with tf.name_scope('pool2'):
-      pool = tf.contrib.layers.max_pool2d(conv, 4, padding='SAME')
+      pool = tf.contrib.layers.max_pool2d(conv, 2)
 
     with tf.name_scope('conv3'):
-      conv = self.multiple_conv(pool, 192, multiples=0, ksize=3)
-
-    with tf.name_scope('pool3'):
-      pool = tf.contrib.layers.max_pool2d(conv, 4, padding='SAME')
-
-    with tf.name_scope('conv4'):
-      conv = self.multiple_conv(pool, 192, multiples=1, ksize=1)
-
-    with tf.name_scope('pool4'):
-      pool = tf.contrib.layers.max_pool2d(conv, 4, padding='SAME')
-
-    with tf.name_scope('conv5'):
-      conv = self.multiple_conv(pool, 192, multiples=1, ksize=1)
+      conv = self.multiple_conv(pool, 384, multiples=1, ksize=3)
 
     with tf.name_scope('pool3'):
       pool = tf.contrib.layers.max_pool2d(conv, 2)
 
-    with tf.name_scope('drop4'):
+    with tf.name_scope('conv4'):
+      conv = self.multiple_conv(pool, 512, multiples=1, ksize=3)
+
+    with tf.name_scope('pool4'):
+      pool = tf.contrib.layers.max_pool2d(conv, 2)
+
+    with tf.name_scope('conv5'):
+      conv = self.multiple_conv(pool, 1024, multiples=1, ksize=1)
+
+    with tf.name_scope('pool5'):
+      pool = tf.contrib.layers.max_pool2d(conv, 2)
+
+    with tf.name_scope('drop5'):
       drop = tf.nn.dropout(pool, keep_prob=self.keep_prob)
 
     with tf.name_scope('output'):
