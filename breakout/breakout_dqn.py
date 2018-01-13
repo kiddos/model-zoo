@@ -247,7 +247,7 @@ class Trainer(object):
     self.replay_buffer.append(step)
 
     if len(self.replay_buffer) > self.replay_buffer_size:
-      self.rewarded_buffer.popleft()
+      self.replay_buffer.popleft()
 
   def start(self):
     self.task = threading.Thread(target=self.train)
