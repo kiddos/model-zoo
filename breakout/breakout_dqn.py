@@ -46,7 +46,7 @@ class DQN(object):
       target = self.reward + discount_factor * \
         tf.cast(tf.logical_not(self.done), tf.float32) * \
         tf.reduce_max(next_q_values, axis=1)
-      y = tf.reduce_max(q_values * self.action_mask, axis=1)
+      y = tf.reduce_sum(q_values * self.action_mask, axis=1)
       self.loss = tf.reduce_mean(tf.square(y - target))
       tf.summary.scalar('loss', self.loss)
 
