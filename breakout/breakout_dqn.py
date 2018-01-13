@@ -46,8 +46,14 @@ class DQN(object):
       target = self.reward + discount_factor * \
         tf.cast(tf.logical_not(self.done), tf.float32) * \
         tf.reduce_max(next_q_values, axis=1)
-      y = tf.reduce_sum(q_values * self.action_mask, axis=1)
-      self.loss = tf.reduce_mean(tf.square(y - target))
+      y = tf.reduce_sum(tf.multiply(q_values, self.action_mask), axis=1)
+      #  self.loss = tf.reduce_mean(tf.square(y - target))
+      diff = y - target
+      diff_abs = tf.abs(diff)
+      condition = tf.cast(tf.less_equal(diff_abs, 1.0), tf.float32)
+      error = tf.square(diff * condition) / 2.0 + \
+        (diff_abs - 0.5) * (1.0 - condition)
+      self.loss = tf.reduce_mean(error)
       tf.summary.scalar('loss', self.loss)
 
     with tf.name_scope('optimization'):
@@ -151,7 +157,8 @@ class Trainer(object):
         os.mkdir('breakout-dqn')
       self.checkpoint = os.path.join('breakout-dqn', 'dqn')
 
-    self.dqn = DQN()
+    self.dqn = DQN(learning_rate=args.learning_rate,
+      discount_factor=args.discount_factor)
     if self.saving:
       self.saver = tf.train.Saver()
       self.summary_writer = tf.summary.FileWriter(
@@ -335,16 +342,18 @@ def main():
   parser.add_argument('--max-episodes', dest='max_episodes', type=int,
     default=2000000, help='max episode to run')
   parser.add_argument('--update-frequency', dest='update_frequency',
-    type=int, default=100, help='update target vars per episode')
+    type=int, default=200, help='update target vars per episode')
   parser.add_argument('--decay-epsilon', dest='decay_epsilon',
     type=int, default=100, help='decay epsilon for epsilon greedy policy')
   parser.add_argument('--min-epsilon', dest='min_epsilon', type=float,
     default=0.1, help='minimum epsilon to decay to')
   parser.add_argument('--skip', dest='skip', type=int,
     default=4, help='skip frames')
+  parser.add_argument('--discoun-factor', dest='discount_factor',
+    type=float, default=0.99, help='discount factor')
 
   parser.add_argument('--learning-rate', dest='learning_rate', type=float,
-    default=1e-3, help='learning rate for training')
+    default=1e-2, help='learning rate for training')
   parser.add_argument('--batch-size', dest='batch_size', type=int,
     default=32, help='batch size for training')
   parser.add_argument('--max-epoches', dest='max_epoches', type=int,
