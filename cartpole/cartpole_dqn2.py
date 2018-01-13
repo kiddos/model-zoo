@@ -19,7 +19,7 @@ logger.setLevel(logging.INFO)
 
 
 class DQN(object):
-  def __init__(self, learning_rate=1e-3, discount_factor=0.99):
+  def __init__(self, learning_rate=1e-3, discount_factor=0.9):
     self._setup_inputs()
 
     with tf.variable_scope('train'):
@@ -71,8 +71,8 @@ class DQN(object):
 
   def inference(self, inputs, trainable=True):
     with tf.name_scope('hidden1'):
-      fc = tf.contrib.layers.fully_connected(inputs, 32, trainable=trainable,
-        activation_fn=tf.nn.relu,
+      fc = tf.contrib.layers.fully_connected(inputs, 64, trainable=trainable,
+        activation_fn=tf.nn.tanh,
         weights_initializer=tf.random_normal_initializer(stddev=0.1))
 
     #  with tf.name_scope('hidden2'):
@@ -125,6 +125,7 @@ class Trainer(object):
     self.display_epoches = args.display_epoches
     self.save_epoches = args.save_epoches
     self.replay_buffer_size = args.replay_buffer_size
+    self.update_frequency = args.update_frequency
 
     self.saving = (args.saving == 'True')
     if self.saving:
@@ -175,6 +176,9 @@ class Trainer(object):
       if epoch % self.save_epoches == 0 and epoch != 0 and self.saving:
         logger.info('saving model...')
         self.saver.save(self.sess, self.checkpoint, global_step=epoch)
+
+      if epoch % self.update_frequency == 0 and epoch != 0:
+        self.dqn.update_target(self.sess)
 
       if not self.running:
         break
@@ -245,8 +249,6 @@ def run_episode(args, env):
       if epsilon <= args.min_epsilon:
         epsilon = args.min_epsilon
 
-    if episode % args.update_frequency == 0:
-      trainer.update_target()
     if not trainer.running:
       break
 

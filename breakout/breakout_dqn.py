@@ -142,6 +142,7 @@ class Trainer(object):
     self.save_epoches = args.save_epoches
     self.replay_buffer_size = args.replay_buffer_size
     self.saving = (args.saving == 'True')
+    self.update_frequency = args.update_frequency
     self.init_replay_buffer_size = args.init_replay_buffer_size
 
     if self.saving:
@@ -229,6 +230,9 @@ class Trainer(object):
           reward_batch, done_batch)
         self.summary_writer.add_summary(summary)
 
+      if epoch % self.update_frequency == 0 and epoch != 0:
+        self.dqn.update_target(self.sess)
+
       if not self.running:
         break
 
@@ -312,8 +316,6 @@ def run_episode(args, env):
     if not trainer.running:
       break
 
-    if episode % args.update_frequency == 0 and episode != 0:
-      trainer.update_target()
     if episode % args.decay_epsilon == 0 and episode != 0:
       epsilon *= 0.9
       if epsilon <= args.min_epsilon:
