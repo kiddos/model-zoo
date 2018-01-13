@@ -294,7 +294,9 @@ def run_episode(args, env):
       next_state, reward, done, _ = env.step(action)
       next_state = process_image(next_state)
       total_reward += reward
-      trainer.add_step([state, action, next_state, reward, done])
+
+      if step % args.skip == 0:
+        trainer.add_step([state, action, next_state, reward, done])
 
       if args.render == 'True':
         env.render()
@@ -336,6 +338,8 @@ def main():
     type=int, default=100, help='decay epsilon for epsilon greedy policy')
   parser.add_argument('--min-epsilon', dest='min_epsilon', type=float,
     default=0.1, help='minimum epsilon to decay to')
+  parser.add_argument('--skip', dest='skip', type=int,
+    default=4, help='skip frames')
 
   parser.add_argument('--learning-rate', dest='learning_rate', type=float,
     default=1e-3, help='learning rate for training')
