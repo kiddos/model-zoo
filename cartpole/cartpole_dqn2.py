@@ -45,7 +45,13 @@ class DQN(object):
         tf.cast(tf.logical_not(self.done), tf.float32) * \
         tf.reduce_max(next_q_values, axis=1)
       y = tf.reduce_sum(q_values * self.action_mask, axis=1)
-      self.loss = tf.reduce_mean(tf.square(y - target))
+      #  self.loss = tf.reduce_mean(tf.square(y - target))
+      diff = y - target
+      diff_abs = tf.abs(diff)
+      condition = tf.cast(tf.less_equal(diff_abs, 1.0), tf.float32)
+      error = tf.square(diff * condition) / 2.0 + \
+        (diff_abs - 0.5) * (1 - condition)
+      self.loss = tf.reduce_mean(error)
       tf.summary.scalar('loss', self.loss)
 
     with tf.name_scope('optimization'):
@@ -259,14 +265,14 @@ def main():
   parser = ArgumentParser()
   parser.add_argument('--render', dest='render', default='True',
     help='render')
-  parser.add_argument('--decay-epsilon', dest='decay_epsilon', default=50,
+  parser.add_argument('--decay-epsilon', dest='decay_epsilon', default=10,
     type=int, help='decay epsilon')
   parser.add_argument('--display-episode', dest='display_episode', default=1,
     type=int, help='display episode')
   parser.add_argument('--replay-buffer-size', dest='replay_buffer_size',
-    type=int, default=30000, help='max replay buffer size')
+    type=int, default=60000, help='max replay buffer size')
   parser.add_argument('--update-frequency', dest='update_frequency',
-    default=50, type=int, help='update frequency')
+    default=200, type=int, help='update frequency')
   parser.add_argument('--min-epsilon', dest='min_epsilon', default=0.01,
     type=float, help='min epsilon')
   parser.add_argument('--discount-factor', dest='discount_factor', default=0.9,
