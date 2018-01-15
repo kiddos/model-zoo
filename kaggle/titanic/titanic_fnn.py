@@ -2,9 +2,11 @@ import tensorflow as tf
 import numpy as np
 import logging
 import os
+import pandas as pd
 from argparse import ArgumentParser
 
-from titanic_prepare import load_data, load_train_data
+from titanic_data_util import analyse_data, parse_data, parse_label
+
 
 logging.basicConfig()
 logger = logging.getLogger('titanic')
@@ -34,8 +36,7 @@ class Titanic(object):
       variance = tf.square(sigma)
       self.loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(
         logits=logits, labels=self.labels), name='loss')
-      #  self.loss = (self.loss / variance + tf.log(variance)) / 2.0
-      self.loss +=regularization
+      self.loss += regularization
 
       tf.summary.scalar('loss', self.loss)
       tf.summary.scalar('variance', variance)
@@ -77,7 +78,7 @@ class Titanic(object):
 
   def inference(self, inputs):
     with tf.name_scope('fc1'):
-      fc = tf.contrib.layers.fully_connected(inputs, 512,
+      fc = tf.contrib.layers.fully_connected(inputs, 256,
         activation_fn=tf.nn.tanh,
         weights_initializer=tf.random_normal_initializer(stddev=1.0))
 
@@ -86,9 +87,6 @@ class Titanic(object):
 
     with tf.name_scope('fc2'):
       fc = self.dense(norm, 256, multiple=1)
-
-    with tf.name_scope('fc2'):
-      fc = self.dense(fc, 128, multiple=1)
 
     with tf.name_scope('drop2'):
       drop = tf.nn.dropout(fc, keep_prob=self.keep_prob)
@@ -125,23 +123,45 @@ class Titanic(object):
     return fc
 
 
+def load_data(csv_files, training_percent=0.8):
+  data = []
+  label = []
+  for csv_file in csv_files:
+    if os.path.isfile(csv_file):
+      titanic_data = pd.read_csv(csv_file)
+      analyse_data(titanic_data, plot=False)
+
+      d = parse_data(titanic_data)
+      l = parse_label(titanic_data)
+      data.append(d)
+      label.append(l)
+
+  data = np.concatenate(data, axis=0)
+  label = np.concatenate(label, axis=0)
+
+  data_size = len(data)
+  index = np.random.permutation(np.arange(data_size))
+
+  training_size = int(data_size * training_percent)
+  train_index = index[:training_size]
+  train_data, train_label = data[train_index, :], label[train_index, :]
+  valid_index = index[training_size:]
+  valid_data, valid_label = data[valid_index, :], label[valid_index, :]
+  return train_data, train_label, valid_data, valid_label
+
+
 def train(args):
-  training_data, training_label, valid_data, valid_label = \
-    load_data(args.csv_file)
+  train_data, train_label, valid_data, valid_label = \
+    load_data(args.csv_files.split(','))
 
   if args.load_all == 'True':
+    train_data = np.concatenate([train_data, valid_data], axis=0)
+    train_label = np.concatenate([train_label, valid_label], axis=0)
 
-    extra_data, extra_label = load_train_data(args.extra_csv_file)
-
-    training_data = np.concatenate(
-      [training_data, valid_data, extra_data], axis=0)
-    training_label = np.concatenate(
-      [training_label, valid_label, extra_label], axis=0)
-
-  logger.info('training data size: %d', len(training_data))
+  logger.info('training data size: %d', len(train_data))
   logger.info('validation data size: %d', len(valid_data))
 
-  model = Titanic(training_data.shape[1], training_label.shape[1],
+  model = Titanic(train_data.shape[1], train_label.shape[1],
     learning_rate=args.learning_rate, decay=args.decay)
 
   if args.saving:
@@ -149,7 +169,6 @@ def train(args):
     checkpoint = os.path.join(folder, 'titanic')
 
     saver = tf.train.Saver()
-
     summary_writer = tf.summary.FileWriter(os.path.join(folder, 'summary'),
       tf.get_default_graph())
 
@@ -159,13 +178,18 @@ def train(args):
     logger.info('initializing variables...')
     sess.run(tf.global_variables_initializer())
 
+    data_size = len(train_data)
     for epoch in range(args.max_epoches + 1):
+      indices = np.random.permutation(np.arange(data_size))[:args.batch_size]
+      batch_data = train_data[indices, :]
+      batch_label = train_label[indices, :]
+
       if epoch % args.display_epoch == 0:
         loss, accuracy, valid_accuracy, valid_logits = sess.run(
           [model.loss, model.accuray, model.valid_accuracy, model.valid_logits],
           feed_dict={
-            model.inputs: training_data,
-            model.labels: training_label,
+            model.inputs: batch_data,
+            model.labels: batch_label,
             model.valid_inputs: valid_data,
             model.valid_labels: valid_label,
             model.keep_prob: 1.0
@@ -174,8 +198,8 @@ def train(args):
           epoch, loss, accuracy, valid_accuracy)
 
       sess.run(model.train_ops, feed_dict={
-        model.inputs: training_data,
-        model.labels: training_label,
+        model.inputs: batch_data,
+        model.labels: batch_label,
         model.keep_prob: args.keep_prob,
       })
 
@@ -183,8 +207,8 @@ def train(args):
         saver.save(sess, checkpoint, global_step=epoch)
 
         summary = sess.run(model.summary, feed_dict={
-          model.inputs: training_data,
-          model.labels: training_label,
+          model.inputs: batch_data,
+          model.labels: batch_label,
           model.valid_inputs: valid_data,
           model.valid_labels: valid_label,
           model.keep_prob: 1.0
@@ -205,8 +229,8 @@ def main():
   parser.add_argument('--mode', dest='mode', default='train',
     type=str, help='train/test')
 
-  parser.add_argument('--csv-file', dest='csv_file', default='titanic_clean.csv',
-    type=str, help='training csv file')
+  parser.add_argument('--csv-files', dest='csv_files',
+    default='titanic_clean.csv,train.csv', help='training csv file')
   parser.add_argument('--extra-csv-file', dest='extra_csv_file',
     default='train.csv', type=str, help='extra training data')
 
@@ -215,7 +239,7 @@ def main():
 
   parser.add_argument('--learning-rate', dest='learning_rate', default=3e-3,
     type=float, help='learning rate to train model')
-  parser.add_argument('--max-epoches', dest='max_epoches', default=200000,
+  parser.add_argument('--max-epoches', dest='max_epoches', default=100000,
     type=int, help='max epoches to train model')
   parser.add_argument('--display-epoches', dest='display_epoch', default=100,
     type=int, help='epoches to evaluation')
@@ -223,9 +247,9 @@ def main():
     type=int, help='epoches to save model')
   parser.add_argument('--decay-epoch', dest='decay_epoch', default=20000,
     type=int, help='epoches to decay learning rate')
-  parser.add_argument('--batch-size', dest='batch_size', default=512,
+  parser.add_argument('--batch-size', dest='batch_size', default=128,
     type=int, help='batch size to train model')
-  parser.add_argument('--keep-prob', dest='keep_prob', default=0.8,
+  parser.add_argument('--keep-prob', dest='keep_prob', default=0.75,
     type=float, help='keep probability for dropout')
   parser.add_argument('--decay', dest='decay', default=0.9,
     type=float, help='decay learning rate')

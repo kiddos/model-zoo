@@ -2,9 +2,10 @@ import tensorflow as tf
 import numpy as np
 import os
 import logging
+import pandas
 from argparse import ArgumentParser
 
-from titanic_prepare import load_test_data
+from titanic_data_util import analyse_data, parse_data
 
 
 logging.basicConfig()
@@ -33,17 +34,23 @@ def run(sess, graph, test_file, output_file):
   keep_prob = graph.get_tensor_by_name('keep_prob:0')
   output = graph.get_tensor_by_name('titanic/outputs/prediction:0')
 
-  test_data = load_test_data(test_file)
-  output = sess.run(output, feed_dict={
-    inputs: test_data,
-    keep_prob: 1.0,
-  })
+  if os.path.isfile(test_file):
+    test_data = pandas.read_csv(test_file)
 
-  with open(output_file, 'w') as f:
-    f.write('PassengerId,Survived\n')
+    analyse_data(test_data)
+    ids = test_data['PassengerId']
+    data = parse_data(test_data)
 
-    for i in range(len(output)):
-      f.write('%d,%d\n' % (i + 892, np.argmax(output[i, :])))
+    output = sess.run(output, feed_dict={
+      inputs: data,
+      keep_prob: 1.0,
+    })
+
+    with open(output_file, 'w') as f:
+      f.write('PassengerId,Survived\n')
+
+      for i, result in enumerate(output):
+        f.write('%d,%d\n' % (ids[i], np.argmax(result)))
 
 
 def main():
