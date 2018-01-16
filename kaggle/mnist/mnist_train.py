@@ -201,6 +201,73 @@ class MNIST(object):
       outputs = tf.nn.softmax(logits, name='prediction')
     return logits, outputs
 
+  def inference_v3(self, inputs):
+    with tf.name_scope('conv1'):
+      conv = tf.contrib.layers.conv2d(inputs, 256, stride=1, kernel_size=5,
+        weights_initializer=tf.random_normal_initializer(stddev=0.05))
+
+    with tf.name_scope('pool1'):
+      pool = tf.contrib.layers.max_pool2d(conv, 2)
+
+    with tf.name_scope('conv2'):
+      conv = tf.contrib.layers.conv2d(pool, 384, stride=1, kernel_size=3,
+        weights_initializer=tf.variance_scaling_initializer())
+
+    with tf.name_scope('conv3'):
+      conv = tf.contrib.layers.conv2d(conv, 384, stride=1, kernel_size=3,
+        weights_initializer=tf.variance_scaling_initializer())
+
+    with tf.name_scope('conv4'):
+      conv = tf.contrib.layers.conv2d(conv, 384, stride=1, kernel_size=3,
+        weights_initializer=tf.variance_scaling_initializer())
+
+    with tf.name_scope('pool4'):
+      pool = tf.contrib.layers.max_pool2d(conv, 2)
+
+    with tf.name_scope('conv5'):
+      conv = tf.contrib.layers.conv2d(pool, 512, stride=1, kernel_size=3,
+        weights_initializer=tf.variance_scaling_initializer())
+
+    with tf.name_scope('conv6'):
+      conv = tf.contrib.layers.conv2d(pool, 512, stride=1, kernel_size=3,
+        weights_initializer=tf.variance_scaling_initializer())
+
+    with tf.name_scope('conv7'):
+      conv = tf.contrib.layers.conv2d(pool, 512, stride=1, kernel_size=3,
+        weights_initializer=tf.variance_scaling_initializer())
+
+    with tf.name_scope('pool7'):
+      pool = tf.contrib.layers.max_pool2d(conv, 2)
+
+    with tf.name_scope('conv8'):
+      conv = tf.contrib.layers.conv2d(pool, 1024, stride=1, kernel_size=1,
+        weights_initializer=tf.variance_scaling_initializer())
+
+    with tf.name_scope('conv9'):
+      conv = tf.contrib.layers.conv2d(conv, 1024, stride=1, kernel_size=1,
+        weights_initializer=tf.variance_scaling_initializer())
+
+    with tf.name_scope('conv10'):
+      conv = tf.contrib.layers.conv2d(conv, 1024, stride=1, kernel_size=1,
+        weights_initializer=tf.variance_scaling_initializer())
+
+    with tf.name_scope('pool10'):
+      pool = tf.contrib.layers.max_pool2d(conv, 3)
+
+    with tf.name_scope('conv11'):
+      conv = tf.contrib.layers.conv2d(pool, 1024, stride=1, kernel_size=1,
+        weights_initializer=tf.variance_scaling_initializer())
+
+    with tf.name_scope('drop11'):
+      drop = tf.nn.dropout(conv, keep_prob=self.keep_prob)
+
+    with tf.name_scope('output'):
+      logits = tf.contrib.layers.conv2d(drop, 10, stride=1, kernel_size=1,
+        weights_initializer=tf.variance_scaling_initializer())
+      logits = tf.reshape(logits, [-1, 10])
+      outputs = tf.nn.softmax(logits, name='prediction')
+    return logits, outputs
+
   def multiple_conv(self, inputs, size, ksize, multiple=1):
     conv = tf.contrib.layers.conv2d(inputs, size, stride=1, kernel_size=ksize,
       weights_initializer=tf.variance_scaling_initializer())
