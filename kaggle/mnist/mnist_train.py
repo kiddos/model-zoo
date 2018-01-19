@@ -263,6 +263,7 @@ class MNIST(object):
 
     with tf.name_scope('output'):
       logits = tf.contrib.layers.conv2d(drop, 10, stride=1, kernel_size=1,
+        activation_fn=None,
         weights_initializer=tf.variance_scaling_initializer())
       logits = tf.reshape(logits, [-1, 10])
       outputs = tf.nn.softmax(logits, name='prediction')
