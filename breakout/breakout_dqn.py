@@ -212,8 +212,7 @@ class Trainer(object):
       done_batch[index]
 
   def train(self):
-    logger.info('sync with target...')
-    self.dqn.update_target(self.sess)
+    self.update_target()
 
     logger.info('waiting for batch...')
     while len(self.replay_buffer) < self.init_replay_buffer_size:
@@ -258,7 +257,7 @@ class Trainer(object):
         self.summary_writer.add_summary(summary)
 
       if epoch % self.update_frequency == 0 and epoch != 0:
-        self.dqn.update_target(self.sess)
+        self.update_target()
 
       epoch += 1
 
@@ -320,7 +319,8 @@ def run_episode(args, env):
         action = np.argmax(action_prob[0, :])
 
       next_state, reward, done, info = env.step(action)
-      R = reward + (info['ale.lives'] - 5)
+      if reward > 0: R = reward + (info['ale.lives'] - 5)
+      else: R = 0
       next_state = process_image(next_state)
       total_reward += reward
 
@@ -340,7 +340,8 @@ def run_episode(args, env):
     if not trainer.running:
       break
 
-    if trainer.start_training and episode % args.decay_epsilon == 0 and episode != 0:
+    if trainer.start_training and episode % args.decay_epsilon == 0 \
+        and episode != 0:
       epsilon *= 0.9
       if epsilon <= args.min_epsilon:
         epsilon = args.min_epsilon
