@@ -324,8 +324,7 @@ def run_episode(args, env):
       next_state = process_image(next_state)
       total_reward += reward
 
-      if step % args.skip == 0:
-        trainer.add_step([state, action, next_state, R, done])
+      trainer.add_step([state, action, next_state, R, done])
 
       if args.render == 'True':
         env.render()
@@ -365,8 +364,6 @@ def main():
     type=int, default=100, help='decay epsilon for epsilon greedy policy')
   parser.add_argument('--min-epsilon', dest='min_epsilon', type=float,
     default=0.1, help='minimum epsilon to decay to')
-  parser.add_argument('--skip', dest='skip', type=int,
-    default=4, help='skip frames')
   parser.add_argument('--discoun-factor', dest='discount_factor',
     type=float, default=0.99, help='discount factor')
 
