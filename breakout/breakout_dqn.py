@@ -323,7 +323,7 @@ def run_episode(args, env):
         action = np.argmax(action_prob[0, :])
 
       next_state, reward, done, info = env.step(action)
-      if reward > 0: R = reward + (info['ale.lives'] - 5)
+      if reward > 0: R = reward * info['ale.lives']
       else: R = 0
       next_state = process_image(next_state)
       total_reward += reward
