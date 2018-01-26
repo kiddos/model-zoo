@@ -323,12 +323,11 @@ def run_episode(args, env):
         action = np.argmax(action_prob[0, :])
 
       next_state, reward, done, info = env.step(action)
-      if reward > 0: R = reward * info['ale.lives']
-      else: R = 0
+      if info['ale.lives'] < 5: done = True
       next_state = process_image(next_state)
       total_reward += reward
 
-      trainer.add_step([state, action, next_state, R, done])
+      trainer.add_step([state, action, next_state, reward, done])
 
       if args.render == 'True':
         env.render()
