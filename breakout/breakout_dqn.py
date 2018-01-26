@@ -86,12 +86,23 @@ class DQN(object):
 
   def inference(self, inputs, trainable=True):
     with tf.name_scope('conv1'):
-      conv = tf.contrib.layers.conv2d(inputs, 16, stride=2, kernel_size=8,
+      conv = tf.contrib.layers.conv2d(inputs, 16, stride=1, kernel_size=7,
         trainable=trainable,
         weights_initializer=tf.random_normal_initializer(stddev=0.001))
 
+    with tf.name_scope('pool1'):
+      pool = tf.contrib.layers.max_pool2d(conv, 2)
+
     with tf.name_scope('conv2'):
-      conv = tf.contrib.layers.conv2d(conv, 32, stride=2, kernel_size=4,
+      conv = tf.contrib.layers.conv2d(pool, 32, stride=1, kernel_size=5,
+        trainable=trainable,
+        weights_initializer=tf.variance_scaling_initializer())
+
+    with tf.name_scope('pool1'):
+      pool = tf.contrib.layers.max_pool2d(conv, 2)
+
+    with tf.name_scope('conv2'):
+      conv = tf.contrib.layers.conv2d(pool, 64, stride=1, kernel_size=3,
         trainable=trainable,
         weights_initializer=tf.variance_scaling_initializer())
 
@@ -105,7 +116,7 @@ class DQN(object):
     with tf.name_scope('output'):
       outputs = tf.contrib.layers.fully_connected(fc, 4, activation_fn=None,
         trainable=trainable,
-        weights_initializer=tf.random_uniform_initializer(-0.01, 0.01))
+        weights_initializer=tf.random_uniform_initializer(-0.001, 0.001))
     return outputs
 
   def update_target(self, sess):
@@ -308,12 +319,13 @@ def run_episode(args, env):
         #  action = epsilon_greedy(action_prob[0], epsilon)
         action = np.argmax(action_prob[0, :])
 
-      next_state, reward, done, _ = env.step(action)
+      next_state, reward, done, info = env.step(action)
+      R = reward + (info['ale.lives'] - 5)
       next_state = process_image(next_state)
       total_reward += reward
 
       if step % args.skip == 0:
-        trainer.add_step([state, action, next_state, reward, done])
+        trainer.add_step([state, action, next_state, R, done])
 
       if args.render == 'True':
         env.render()
