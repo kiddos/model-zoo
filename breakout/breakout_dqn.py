@@ -21,7 +21,7 @@ logger.setLevel(logging.INFO)
 
 
 class DQN(object):
-  def __init__(self, learning_rate=1e-3, discount_factor=0.9):
+  def __init__(self, learning_rate=1e-4, discount_factor=0.99):
     self._setup_inputs()
 
     with tf.variable_scope('train'):
@@ -310,11 +310,15 @@ def run_episode(args, env):
     step = 0
     total_reward = 0
 
+    max_q = np.max(trainer.predict_action(state))
     while True:
+      action_prob = trainer.predict_action(state)
+      ma = np.max(action_prob)
+      if ma > max_q: max_q = ma
+
       if random.random() < epsilon:
         action = env.action_space.sample()
       else:
-        action_prob = trainer.predict_action(state)
         #  action = epsilon_greedy(action_prob[0], epsilon)
         action = np.argmax(action_prob[0, :])
 
@@ -330,8 +334,8 @@ def run_episode(args, env):
         env.render()
       state = next_state
       if done:
-        logger.info('%d. steps: %d, epsilon: %f, total: %f',
-          episode, step, epsilon, total_reward)
+        logger.info('%d. steps: %d, epsilon: %f, total: %f, max Q: %f',
+          episode, step, epsilon, total_reward, max_q)
         sys.stdout.flush()
         break
 
