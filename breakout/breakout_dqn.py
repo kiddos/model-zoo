@@ -43,9 +43,11 @@ class DQN(object):
         self.copy_ops.append(tf.assign(target_vars[i], train_vars[i]))
 
     with tf.name_scope('loss'):
+      max_index = tf.argmax(next_q_values, axis=1)
+      max_target = tf.one_hot(max_index, 4)
       target = self.reward + discount_factor * \
         tf.cast(tf.logical_not(self.done), tf.float32) * \
-        tf.reduce_max(next_q_values, axis=1)
+        tf.reduce_sum(next_q_values * max_target, axis=1)
       y = tf.reduce_sum(tf.multiply(self.action_mask, q_values), axis=1)
       #  self.loss = tf.reduce_mean(tf.square(y - target))
       diff = y - target
@@ -355,7 +357,7 @@ def main():
     type=float, default=0.99, help='discount factor')
 
   parser.add_argument('--learning-rate', dest='learning_rate', type=float,
-    default=1e-2, help='learning rate for training')
+    default=1e-4, help='learning rate for training')
   parser.add_argument('--batch-size', dest='batch_size', type=int,
     default=32, help='batch size for training')
   parser.add_argument('--max-epoches', dest='max_epoches', type=int,
