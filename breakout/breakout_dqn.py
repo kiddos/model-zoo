@@ -45,12 +45,16 @@ class DQN(object):
     with tf.name_scope('loss'):
       max_index = tf.argmax(next_q_values, axis=1)
       max_target = tf.one_hot(max_index, 4)
-      target = self.reward + discount_factor * \
-        tf.cast(tf.logical_not(self.done), tf.float32) * \
-        tf.reduce_sum(next_q_values * max_target, axis=1)
-      y = tf.reduce_sum(tf.multiply(self.action_mask, q_values), axis=1)
+      target = discount_factor * \
+        tf.expand_dims(tf.cast(tf.logical_not(self.done),
+          tf.float32), axis=1) * \
+        next_q_values * max_target + \
+        tf.expand_dims(self.reward, axis=1) * max_target
+
+      action_mask = tf.one_hot(self.action, 4)
+      y = action_mask * q_values
       #  self.loss = tf.reduce_mean(tf.square(y - target))
-      diff = y - target
+      diff = tf.reduce_sum(y - target, axis=1)
       diff_abs = tf.abs(diff)
       condition = tf.cast(tf.less_equal(diff_abs, 1.0), tf.float32)
       error = tf.square(diff * condition) / 2.0 + \
@@ -77,8 +81,8 @@ class DQN(object):
       shape=[None, 65, 68, 1])
     self.reward = tf.placeholder(dtype=tf.float32, name='reward', shape=[None])
     self.done = tf.placeholder(dtype=tf.bool, name='done', shape=[None])
-    self.action_mask = tf.placeholder(dtype=tf.float32, name='action_mask',
-      shape=[None, 4])
+    self.action = tf.placeholder(dtype=tf.int32, name='action',
+      shape=[None])
 
   def inference(self, inputs, trainable=True):
     with tf.name_scope('conv1'):
@@ -111,7 +115,7 @@ class DQN(object):
     _, loss = sess.run([self.train_ops, self.loss], feed_dict={
       self.state: states,
       self.next_state: next_states,
-      self.action_mask: actions,
+      self.action: actions,
       self.reward: rewards,
       self.done: done,
     })
@@ -121,7 +125,7 @@ class DQN(object):
     return sess.run(self.summary, feed_dict={
       self.state: states,
       self.next_state: next_states,
-      self.action_mask: actions,
+      self.action: actions,
       self.reward: rewards,
       self.done: done,
     })
@@ -173,6 +177,7 @@ class Trainer(object):
     logger.info('initializing variables...')
     self.sess.run(tf.global_variables_initializer())
     self.running = True
+    self.start_training = False
 
   def __del__(self):
     self.running = False
@@ -180,8 +185,7 @@ class Trainer(object):
   def get_batch(self, buffers):
     batch = random.sample(buffers, self.batch_size)
     state_batch = np.array([b[0] for b in batch])
-    action_batch = np.array([[1 if i == b[1] else 0 for i in range(4)]
-      for b in batch])
+    action_batch = np.array([b[1] for b in batch])
     next_state_batch = np.array([b[2] for b in batch])
     reward_batch = np.array([b[3] for b in batch])
     done_batch = np.array([b[4] for b in batch])
@@ -203,10 +207,11 @@ class Trainer(object):
     logger.info('waiting for batch...')
     while len(self.replay_buffer) < self.init_replay_buffer_size:
       pass
+    self.start_training = True
 
     logger.info('start training...')
     epoch = 0
-    while True:
+    while self.running:
       state_batch, action_batch, next_state_batch, \
         reward_batch, done_batch = self.get_batch(self.replay_buffer)
 
@@ -243,9 +248,6 @@ class Trainer(object):
 
       if epoch % self.update_frequency == 0 and epoch != 0:
         self.dqn.update_target(self.sess)
-
-      if not self.running:
-        break
 
       epoch += 1
 
@@ -327,7 +329,7 @@ def run_episode(args, env):
     if not trainer.running:
       break
 
-    if episode % args.decay_epsilon == 0 and episode != 0:
+    if trainer.start_training and episode % args.decay_epsilon == 0 and episode != 0:
       epsilon *= 0.9
       if epsilon <= args.min_epsilon:
         epsilon = args.min_epsilon
