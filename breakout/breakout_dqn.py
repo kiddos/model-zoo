@@ -86,23 +86,12 @@ class DQN(object):
 
   def inference(self, inputs, trainable=True):
     with tf.name_scope('conv1'):
-      conv = tf.contrib.layers.conv2d(inputs, 16, stride=1, kernel_size=7,
+      conv = tf.contrib.layers.conv2d(inputs, 16, stride=2, kernel_size=8,
         trainable=trainable,
         weights_initializer=tf.random_normal_initializer(stddev=0.001))
 
-    with tf.name_scope('pool1'):
-      pool = tf.contrib.layers.max_pool2d(conv, 2)
-
     with tf.name_scope('conv2'):
-      conv = tf.contrib.layers.conv2d(pool, 32, stride=1, kernel_size=5,
-        trainable=trainable,
-        weights_initializer=tf.variance_scaling_initializer())
-
-    with tf.name_scope('pool1'):
-      pool = tf.contrib.layers.max_pool2d(conv, 2)
-
-    with tf.name_scope('conv2'):
-      conv = tf.contrib.layers.conv2d(pool, 64, stride=1, kernel_size=3,
+      conv = tf.contrib.layers.conv2d(conv, 32, stride=2, kernel_size=4,
         trainable=trainable,
         weights_initializer=tf.variance_scaling_initializer())
 
