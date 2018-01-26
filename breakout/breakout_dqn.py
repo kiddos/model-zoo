@@ -46,20 +46,21 @@ class DQN(object):
       target = self.reward + discount_factor * \
         tf.cast(tf.logical_not(self.done), tf.float32) * \
         tf.reduce_max(next_q_values, axis=1)
-      y = tf.reduce_sum(tf.multiply(q_values, self.action_mask), axis=1)
+      y = tf.reduce_sum(tf.multiply(self.action_mask, q_values), axis=1)
       #  self.loss = tf.reduce_mean(tf.square(y - target))
       diff = y - target
       diff_abs = tf.abs(diff)
       condition = tf.cast(tf.less_equal(diff_abs, 1.0), tf.float32)
       error = tf.square(diff * condition) / 2.0 + \
         (diff_abs - 0.5) * (1.0 - condition)
-      self.loss = tf.reduce_mean(error)
+      self.loss = tf.reduce_sum(error)
       tf.summary.scalar('loss', self.loss)
 
     with tf.name_scope('optimization'):
       self.learning_rate = tf.Variable(learning_rate, trainable=False,
         name='learning_rate')
-      optimizer = tf.train.AdamOptimizer(self.learning_rate)
+      optimizer = tf.train.RMSPropOptimizer(self.learning_rate,
+        momentum=0.95, epsilon=0.01)
       self.train_ops = optimizer.minimize(self.loss)
 
       tf.summary.scalar('learning_rate', self.learning_rate)
@@ -98,7 +99,7 @@ class DQN(object):
     with tf.name_scope('output'):
       outputs = tf.contrib.layers.fully_connected(fc, 4, activation_fn=None,
         trainable=trainable,
-        weights_initializer=tf.variance_scaling_initializer())
+        weights_initializer=tf.random_uniform_initializer(-0.01, 0.01))
     return outputs
 
   def update_target(self, sess):
@@ -194,12 +195,13 @@ class Trainer(object):
       done_batch[index]
 
   def train(self):
+    logger.info('sync with target...')
+    self.dqn.update_target(self.sess)
+
     logger.info('waiting for batch...')
     while len(self.replay_buffer) < self.init_replay_buffer_size:
       pass
 
-    logger.info('sync with target...')
-    self.dqn.update_target(self.sess)
     logger.info('start training...')
     epoch = 0
     while True:
@@ -286,7 +288,7 @@ def run_episode(args, env):
     trainer.running = False
   signal.signal(signal.SIGINT, stop)
 
-  epsilon = 0.9
+  epsilon = 1.0
   for episode in range(args.max_episodes + 1):
     state = env.reset()
     state = process_image(state)
@@ -373,7 +375,7 @@ def main():
     default='False', help='rather to save the training result')
   args = parser.parse_args()
 
-  env = gym.make('Breakout-v0')
+  env = gym.make('BreakoutDeterministic-v4')
   run_episode(args, env)
 
 
