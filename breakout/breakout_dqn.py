@@ -294,6 +294,9 @@ def run_episode(args, env):
   epsilon = 1.0
   for episode in range(args.max_episodes + 1):
     state = env.reset()
+    # start the game
+    env.step(1)
+
     state = process_image(state)
 
     step = 0
