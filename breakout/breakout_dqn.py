@@ -384,7 +384,7 @@ def main():
     default='False', help='rather to save the training result')
   args = parser.parse_args()
 
-  env = gym.make('BreakoutDeterministic-v4')
+  env = gym.make('Breakout-v0')
   run_episode(args, env)
 
 
