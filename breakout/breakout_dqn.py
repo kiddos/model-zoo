@@ -263,8 +263,8 @@ class Trainer(object):
     self.sess.close()
 
   def update_target(self):
-    logger.info('update target network...')
-    sys.stdout.flush()
+    #  logger.info('update target network...')
+    #  sys.stdout.flush()
     self.dqn.update_target(self.sess)
 
   def add_step(self, step):
