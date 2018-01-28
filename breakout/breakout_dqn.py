@@ -59,7 +59,7 @@ class DQN(object):
       condition = tf.cast(tf.less_equal(diff_abs, 1.0), tf.float32)
       error = tf.square(diff * condition) / 2.0 + \
         (diff_abs - 0.5) * (1.0 - condition)
-      self.loss = tf.reduce_sum(error)
+      self.loss = tf.reduce_mean(error)
       tf.summary.scalar('loss', self.loss)
 
     with tf.name_scope('optimization'):
