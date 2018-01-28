@@ -86,12 +86,17 @@ class DQN(object):
 
   def inference(self, inputs, trainable=True):
     with tf.name_scope('conv1'):
-      conv = tf.contrib.layers.conv2d(inputs, 16, stride=4, kernel_size=8,
+      conv = tf.contrib.layers.conv2d(inputs, 32, stride=4, kernel_size=8,
         trainable=trainable,
         weights_initializer=tf.random_normal_initializer(stddev=0.001))
 
     with tf.name_scope('conv2'):
-      conv = tf.contrib.layers.conv2d(conv, 32, stride=2, kernel_size=4,
+      conv = tf.contrib.layers.conv2d(conv, 64, stride=2, kernel_size=4,
+        trainable=trainable,
+        weights_initializer=tf.variance_scaling_initializer())
+
+    with tf.name_scope('conv3'):
+      conv = tf.contrib.layers.conv2d(conv, 64, stride=1, kernel_size=3,
         trainable=trainable,
         weights_initializer=tf.variance_scaling_initializer())
 
@@ -99,7 +104,10 @@ class DQN(object):
       connect_shape = conv.get_shape().as_list()
       connect_size = connect_shape[1] * connect_shape[2] * connect_shape[3]
       fc = tf.contrib.layers.fully_connected(
-        tf.reshape(conv, [-1, connect_size]), 256, trainable=trainable,
+        tf.reshape(conv, [-1, connect_size]), 128, trainable=trainable,
+        weights_initializer=tf.variance_scaling_initializer())
+
+      fc = tf.contrib.layers.fully_connected(fc, 128, trainable=trainable,
         weights_initializer=tf.variance_scaling_initializer())
 
     with tf.name_scope('output'):
