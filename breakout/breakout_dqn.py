@@ -86,7 +86,7 @@ class DQN(object):
 
   def inference(self, inputs, trainable=True):
     with tf.name_scope('conv1'):
-      conv = tf.contrib.layers.conv2d(inputs, 16, stride=2, kernel_size=8,
+      conv = tf.contrib.layers.conv2d(inputs, 16, stride=4, kernel_size=8,
         trainable=trainable,
         weights_initializer=tf.random_normal_initializer(stddev=0.001))
 
