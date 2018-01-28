@@ -285,7 +285,7 @@ class Trainer(object):
 
 
 def process_image(state):
-  image = Image.fromarray(state).crop([8, 32, 144, 162])
+  image = Image.fromarray(state).crop([8, 32, 144, 194])
   #  image = image.resize([68, 65]).convert('L')
   image = image.resize([84, 84]).convert('L')
   return np.expand_dims(np.array(image), axis=2)
