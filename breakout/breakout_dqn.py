@@ -76,9 +76,9 @@ class DQN(object):
 
   def _setup_inputs(self):
     self.state = tf.placeholder(dtype=tf.float32, name='state',
-      shape=[None, 65, 68, 1])
+      shape=[None, 84, 84, 1])
     self.next_state = tf.placeholder(dtype=tf.float32, name='next_state',
-      shape=[None, 65, 68, 1])
+      shape=[None, 84, 84, 1])
     self.reward = tf.placeholder(dtype=tf.float32, name='reward', shape=[None])
     self.done = tf.placeholder(dtype=tf.bool, name='done', shape=[None])
     self.action = tf.placeholder(dtype=tf.int32, name='action',
@@ -278,7 +278,8 @@ class Trainer(object):
 
 def process_image(state):
   image = Image.fromarray(state).crop([8, 32, 144, 162])
-  image = image.resize([68, 65]).convert('L')
+  #  image = image.resize([68, 65]).convert('L')
+  image = image.resize([84, 84]).convert('L')
   return np.expand_dims(np.array(image), axis=2)
 
 
@@ -291,6 +292,7 @@ def run_episode(args, env):
     trainer.running = False
   signal.signal(signal.SIGINT, stop)
 
+  max_total_reward = 0
   epsilon = 1.0
   for episode in range(args.max_episodes + 1):
     state = env.reset()
@@ -325,9 +327,10 @@ def run_episode(args, env):
         env.render()
       state = next_state
       if done:
+        if total_reward > max_total_reward: max_total_reward = total_reward
         if episode % args.display_episode == 0:
-          logger.info('%d. steps: %d, epsilon: %f, total: %f, max Q: %f',
-            episode, step, epsilon, total_reward, max_q)
+          logger.info('%d. epsilon: %f, total: %f, max Q: %f, max reward: %d',
+            episode, step, epsilon, total_reward, max_q, max_total_reward)
           sys.stdout.flush()
         break
 
