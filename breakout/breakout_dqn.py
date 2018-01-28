@@ -325,9 +325,10 @@ def run_episode(args, env):
         env.render()
       state = next_state
       if done:
-        logger.info('%d. steps: %d, epsilon: %f, total: %f, max Q: %f',
-          episode, step, epsilon, total_reward, max_q)
-        sys.stdout.flush()
+        if episode % args.display_episode == 0:
+          logger.info('%d. steps: %d, epsilon: %f, total: %f, max Q: %f',
+            episode, step, epsilon, total_reward, max_q)
+          sys.stdout.flush()
         break
 
       step += 1
@@ -362,6 +363,8 @@ def main():
     default=0.1, help='minimum epsilon to decay to')
   parser.add_argument('--discoun-factor', dest='discount_factor',
     type=float, default=0.99, help='discount factor')
+  parser.add_argument('--display-episode', dest='display_episode',
+    default=5, type=int, help='episode to display result')
 
   parser.add_argument('--learning-rate', dest='learning_rate', type=float,
     default=1e-4, help='learning rate for training')
