@@ -330,7 +330,7 @@ def run_episode(args, env):
         if total_reward > max_total_reward: max_total_reward = total_reward
         if episode % args.display_episode == 0:
           logger.info('%d. epsilon: %f, total: %f, max Q: %f, max reward: %d',
-            episode, step, epsilon, total_reward, max_q, max_total_reward)
+            episode, epsilon, total_reward, max_q, max_total_reward)
           sys.stdout.flush()
         break
 
