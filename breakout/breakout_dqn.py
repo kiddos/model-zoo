@@ -114,7 +114,7 @@ class DQN(object):
     with tf.name_scope('conv1'):
       conv = tf.contrib.layers.conv2d(inputs, 32, stride=4, kernel_size=8,
         trainable=trainable,
-        weights_initializer=tf.random_normal_initializer(stddev=0.001))
+        weights_initializer=tf.random_normal_initializer(stddev=0.006))
 
     with tf.name_scope('conv2'):
       conv = tf.contrib.layers.conv2d(conv, 64, stride=2, kernel_size=4,
@@ -269,6 +269,8 @@ def run_episode(env):
       state = process_image(state)
 
       epsilon = decay_epsilon(episode, FLAGS.decay_to_episode)
+      if epsilon < FLAGS.min_epsilon: epsilon = FLAGS.min_epsilon
+
       step = 0
       total_reward = 0
 
