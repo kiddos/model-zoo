@@ -65,8 +65,7 @@ class DQN(object):
     with tf.name_scope('optimization'):
       self.learning_rate = tf.Variable(learning_rate, trainable=False,
         name='learning_rate')
-      optimizer = tf.train.RMSPropOptimizer(self.learning_rate,
-        momentum=0.95, epsilon=0.01)
+      optimizer = tf.train.RMSPropOptimizer(self.learning_rate, 0.99, 0.0, 1e-6)
       self.train_ops = optimizer.minimize(self.loss)
 
       tf.summary.scalar('learning_rate', self.learning_rate)
@@ -287,7 +286,7 @@ class Trainer(object):
 def process_image(state):
   image = Image.fromarray(state).crop([8, 32, 144, 194])
   #  image = image.resize([68, 65]).convert('L')
-  image = image.resize([84, 84]).convert('L')
+  image = image.resize([84, 84], Image.NEAREST).convert('L')
   return np.expand_dims(np.array(image), axis=2)
 
 
