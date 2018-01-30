@@ -54,12 +54,12 @@ class QFunction(object):
 
   def _inference(self, trainable):
     with tf.name_scope('hidden1'):
-      h = tf.contrib.layers.fully_connected(self.state, 32,
+      h = tf.contrib.layers.fully_connected(self.state, 64,
         trainable=trainable,
         weights_initializer=tf.random_normal_initializer(stddev=0.1))
 
     with tf.name_scope('hidden2'):
-      h = tf.contrib.layers.fully_connected(h, 32,
+      h = tf.contrib.layers.fully_connected(h, 64,
         trainable=trainable,
         weights_initializer=tf.variance_scaling_initializer())
 
