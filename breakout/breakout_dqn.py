@@ -54,30 +54,29 @@ class DQN(object):
     self._setup_inputs()
 
     with tf.variable_scope('train'):
-      q_values = self.inference(self.state)
-      self.q_values = q_values
-    tf.summary.histogram('q_values', q_values)
+      self.q_values = self.inference(self.state)
+    tf.summary.histogram('q_values', self.q_values)
 
     with tf.variable_scope('target'):
-      next_q_values = self.inference(self.next_state, False)
-      self.next_q_values = next_q_values
-    tf.summary.histogram('next_q_values', next_q_values)
+      self.next_q_values = self.inference(self.next_state, False)
+    tf.summary.histogram('next_q_values', self.next_q_values)
 
     with tf.name_scope('copy_ops'):
       train_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, 'train')
       target_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, 'target')
       self.copy_ops = []
       assert len(train_vars) == len(target_vars)
+      assert len(train_vars) > 0
       for i in range(len(train_vars)):
         self.copy_ops.append(tf.assign(target_vars[i], train_vars[i]))
 
     with tf.name_scope('loss'):
       target = self.reward + FLAGS.gamma * \
         tf.cast(tf.logical_not(self.done), tf.float32) * \
-        tf.reduce_max(next_q_values, axis=1)
+        tf.reduce_max(self.next_q_values, axis=1)
 
       action_mask = tf.one_hot(self.action, 4)
-      y = tf.reduce_sum(action_mask * q_values, axis=1)
+      y = tf.reduce_sum(action_mask * self.q_values, axis=1)
       self.loss = tf.reduce_mean(tf.square(y - target))
 
       # Huber's loss
@@ -111,10 +110,13 @@ class DQN(object):
       shape=[None])
 
   def inference(self, inputs, trainable=True):
+    with tf.name_scope('norm'):
+      inputs = tf.div(inputs, 255.0)
+
     with tf.name_scope('conv1'):
       conv = tf.contrib.layers.conv2d(inputs, 32, stride=4, kernel_size=8,
         trainable=trainable,
-        weights_initializer=tf.random_normal_initializer(stddev=0.006))
+        weights_initializer=tf.variance_scaling_initializer())
 
     with tf.name_scope('conv2'):
       conv = tf.contrib.layers.conv2d(conv, 64, stride=2, kernel_size=4,
@@ -130,7 +132,7 @@ class DQN(object):
       connect_shape = conv.get_shape().as_list()
       connect_size = connect_shape[1] * connect_shape[2] * connect_shape[3]
       fc = tf.contrib.layers.fully_connected(
-        tf.reshape(conv, [-1, connect_size]), 256, trainable=trainable,
+        tf.reshape(conv, [-1, connect_size]), 512, trainable=trainable,
         weights_initializer=tf.variance_scaling_initializer())
 
     with tf.name_scope('output'):
