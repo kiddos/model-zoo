@@ -75,9 +75,9 @@ class DQN(object):
         tf.cast(tf.logical_not(self.done), tf.float32) * \
         tf.reduce_max(self.next_q_values, axis=1)
 
-      action_mask = tf.one_hot(self.action, 4)
-      y = tf.reduce_sum(action_mask * self.q_values, axis=1)
-      self.loss = tf.reduce_mean(tf.square(y - target))
+      action_mask = tf.one_hot(self.action, 4, name='action_mask')
+      y = tf.reduce_sum(action_mask * self.q_values, axis=1, name='y')
+      self.loss = tf.reduce_mean(tf.square(y - target), name='loss')
 
       # Huber's loss
       #  diff = tf.reduce_sum(y - target, axis=1)
