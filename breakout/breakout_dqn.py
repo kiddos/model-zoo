@@ -172,7 +172,7 @@ class Trainer(object):
     sess.run(self.dqn.copy_ops)
 
   def add_step(self, step):
-    self.neplay_buffer.append(step)
+    self.replay_buffer.append(step)
 
     if len(self.replay_buffer) > FLAGS.replay_buffer_size:
       self.replay_buffer.popleft()
