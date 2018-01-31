@@ -166,12 +166,13 @@ class Trainer(object):
       self.dqn.reward: reward_batch,
       self.dqn.done: done_batch,
     })
+    del state_batch, action_batch, next_state_batch, reward_batch, done_batch
 
   def update_target(self, sess):
     sess.run(self.dqn.copy_ops)
 
   def add_step(self, step):
-    self.replay_buffer.append(step)
+    self.neplay_buffer.append(step)
 
     if len(self.replay_buffer) > FLAGS.replay_buffer_size:
       self.replay_buffer.popleft()
@@ -226,7 +227,9 @@ def process_image(state):
   #  image = image.resize([68, 65]).convert('L')
   image = image.resize([FLAGS.image_width, FLAGS.image_height],
     Image.NEAREST).convert('L')
-  return np.expand_dims(np.array(image, dtype=np.uint8), axis=2)
+  img = np.expand_dims(np.array(image, dtype=np.uint8), axis=2)
+  del image
+  return img
 
 
 def decay_epsilon(episode, to):
