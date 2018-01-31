@@ -224,7 +224,7 @@ def process_image(state):
   #  image = image.resize([68, 65]).convert('L')
   image = image.resize([FLAGS.image_width, FLAGS.image_height],
     Image.NEAREST).convert('L')
-  return np.expand_dims(np.array(image), axis=2)
+  return np.expand_dims(np.array(image, dtype=np.uint8), axis=2)
 
 
 def decay_epsilon(episode, to):
