@@ -7,8 +7,6 @@ import logging
 import threading
 import signal
 import os
-import sys
-import copy
 from PIL import Image
 from collections import deque
 from argparse import ArgumentParser
@@ -110,13 +108,10 @@ class DQN(object):
       shape=[None])
 
   def inference(self, inputs, trainable=True):
-    with tf.name_scope('norm'):
-      inputs = tf.div(inputs, 255.0)
-
     with tf.name_scope('conv1'):
       conv = tf.contrib.layers.conv2d(inputs, 32, stride=4, kernel_size=8,
         trainable=trainable,
-        weights_initializer=tf.variance_scaling_initializer())
+        weights_initializer=tf.random_normal_initializer(stddev=0.001))
 
     with tf.name_scope('conv2'):
       conv = tf.contrib.layers.conv2d(conv, 64, stride=2, kernel_size=4,
@@ -132,7 +127,10 @@ class DQN(object):
       connect_shape = conv.get_shape().as_list()
       connect_size = connect_shape[1] * connect_shape[2] * connect_shape[3]
       fc = tf.contrib.layers.fully_connected(
-        tf.reshape(conv, [-1, connect_size]), 512, trainable=trainable,
+        tf.reshape(conv, [-1, connect_size]), 128, trainable=trainable,
+        weights_initializer=tf.variance_scaling_initializer())
+
+      fc = tf.contrib.layers.fully_connected(fc, 128, trainable=trainable,
         weights_initializer=tf.variance_scaling_initializer())
 
     with tf.name_scope('output'):
@@ -166,7 +164,6 @@ class Trainer(object):
       self.dqn.reward: reward_batch,
       self.dqn.done: done_batch,
     })
-    del state_batch, action_batch, next_state_batch, reward_batch, done_batch
 
   def update_target(self, sess):
     sess.run(self.dqn.copy_ops)
@@ -196,9 +193,9 @@ class Trainer(object):
   def max_q_values(self, sess):
     state_batch, action_batch, next_state_batch, \
       reward_batch, done_batch = self.get_batch(FLAGS.batch_size)
-    return sess.run(tf.reduce_max(self.dqn.next_q_values), feed_dict={
+    return np.max(sess.run(self.dqn.next_q_values, feed_dict={
       self.dqn.next_state: state_batch,
-    })
+    }))
 
   def get_summary(self, sess):
     state_batch, action_batch, next_state_batch, \
@@ -228,7 +225,6 @@ def process_image(state):
   image = image.resize([FLAGS.image_width, FLAGS.image_height],
     Image.NEAREST).convert('L')
   img = np.expand_dims(np.array(image, dtype=np.uint8), axis=2)
-  del image
   return img
 
 
@@ -292,6 +288,8 @@ def run_episode(env):
         step += 1
         total_reward += reward
         state = next_state
+
+        trainer.train(sess)
 
         if FLAGS.render == 'True':
           env.render()
