@@ -92,7 +92,7 @@ class DQN(object):
     with tf.name_scope('optimization'):
       self.learning_rate = tf.Variable(FLAGS.learning_rate, trainable=False,
         name='learning_rate')
-      optimizer = tf.train.RMSPropOptimizer(self.learning_rate, 0.99, 0.0, 1.0)
+      optimizer = tf.train.RMSPropOptimizer(self.learning_rate, 0.95, 0.95, 0.01)
       self.train_ops = optimizer.minimize(self.loss)
 
       tf.summary.scalar('learning_rate', self.learning_rate)
@@ -130,10 +130,7 @@ class DQN(object):
       connect_shape = conv.get_shape().as_list()
       connect_size = connect_shape[1] * connect_shape[2] * connect_shape[3]
       fc = tf.contrib.layers.fully_connected(
-        tf.reshape(conv, [-1, connect_size]), 128, trainable=trainable,
-        weights_initializer=tf.variance_scaling_initializer())
-
-      fc = tf.contrib.layers.fully_connected(fc, 128, trainable=trainable,
+        tf.reshape(conv, [-1, connect_size]), 256, trainable=trainable,
         weights_initializer=tf.variance_scaling_initializer())
 
     with tf.name_scope('output'):
