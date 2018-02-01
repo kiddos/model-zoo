@@ -78,7 +78,7 @@ class DQN(object):
       #  self.loss = tf.reduce_mean(tf.square(y - target), name='loss')
 
       # Huber's loss
-      diff = tf.reduce_sum(y - target)
+      diff = y - target
       diff_abs = tf.abs(diff)
       condition = tf.cast(tf.less_equal(diff_abs, 1.0), tf.float32)
       error = tf.square(diff * condition) / 2.0 + \
