@@ -75,22 +75,25 @@ class DQN(object):
 
       action_mask = tf.one_hot(self.action, 4, name='action_mask')
       y = tf.reduce_sum(action_mask * self.q_values, axis=1, name='y')
-      self.loss = tf.reduce_mean(tf.square(y - target), name='loss')
+      #  self.loss = tf.reduce_mean(tf.square(y - target), name='loss')
 
       # Huber's loss
-      #  diff = tf.reduce_sum(y - target, axis=1)
-      #  diff_abs = tf.abs(diff)
-      #  condition = tf.cast(tf.less_equal(diff_abs, 1.0), tf.float32)
-      #  error = tf.square(diff * condition) / 2.0 + \
-      #    (diff_abs - 0.5) * (1.0 - condition)
-      #  self.loss = tf.reduce_mean(error, name='loss')
+      diff = tf.reduce_sum(y - target)
+      diff_abs = tf.abs(diff)
+      condition = tf.cast(tf.less_equal(diff_abs, 1.0), tf.float32)
+      error = tf.square(diff * condition) / 2.0 + \
+        (diff_abs - 0.5) * (1.0 - condition)
+      self.loss = tf.reduce_mean(error, name='loss')
       tf.summary.scalar('loss', self.loss)
 
     with tf.name_scope('optimization'):
       self.learning_rate = tf.Variable(FLAGS.learning_rate, trainable=False,
         name='learning_rate')
       optimizer = tf.train.RMSPropOptimizer(self.learning_rate, 0.95, 0.95, 0.01)
-      self.train_ops = optimizer.minimize(self.loss)
+      #  self.train_ops = optimizer.minimize(self.loss)
+      grads = optimizer.compute_gradients(self.loss)
+      grads = [(tf.clip_by_value(g, -1.0, 1.0), v) for g, v in grads]
+      self.train_ops = optimizer.apply_gradients(grads)
 
       tf.summary.scalar('learning_rate', self.learning_rate)
 
