@@ -25,20 +25,24 @@ tf.app.flags.DEFINE_integer('replay_buffer_size', 300000,
   'replay buffer max size')
 tf.app.flags.DEFINE_integer('max_episodes', 600000,
   'number of episodes to run')
-tf.app.flags.DEFINE_integer('update_frequency', 6,
+tf.app.flags.DEFINE_integer('update_frequency', 300,
   'update target network per episode')
 tf.app.flags.DEFINE_integer('decay_to_episode', 50000,
   'decay epsilon until episode')
 tf.app.flags.DEFINE_float('min_epsilon', 0.1, 'min epsilon to decay to')
 tf.app.flags.DEFINE_float('gamma', 0.99, 'discount factor')
 tf.app.flags.DEFINE_float('learning_rate', 0.00025, 'learning rate to train')
+tf.app.flags.DEFINE_float('decay', 0.95,
+  'decay factor for next gradients for RMSProp')
+tf.app.flags.DEFINE_float('momentum', 0.95, 'squred momentum for RMSProp')
+tf.app.flags.DEFINE_float('eps', 0.01, 'eps for avoiding zero for RMSProp')
 tf.app.flags.DEFINE_integer('batch_size', 32, 'batch size to train')
 tf.app.flags.DEFINE_integer('image_width', 84, 'input image width')
 tf.app.flags.DEFINE_integer('image_height', 84, 'input image height')
 
 tf.app.flags.DEFINE_integer('display_episode', 1, 'display result per episode')
 tf.app.flags.DEFINE_integer('save_episode', 1000, 'save model per episode')
-tf.app.flags.DEFINE_integer('summary_episode', 100, 'save summary per episode')
+tf.app.flags.DEFINE_integer('summary_episode', 10, 'save summary per episode')
 
 
 coloredlogs.install()
@@ -89,7 +93,8 @@ class DQN(object):
     with tf.name_scope('optimization'):
       self.learning_rate = tf.Variable(FLAGS.learning_rate, trainable=False,
         name='learning_rate')
-      optimizer = tf.train.RMSPropOptimizer(self.learning_rate, 0.95, 0.95, 0.01)
+      optimizer = tf.train.RMSPropOptimizer(self.learning_rate,
+        FLAGS.decay, FLAGS.momentum, FLAGS.eps)
       #  self.train_ops = optimizer.minimize(self.loss)
       grads = optimizer.compute_gradients(self.loss)
       grads = [(tf.clip_by_value(g, -1.0, 1.0), v) for g, v in grads]
@@ -253,6 +258,11 @@ def run_episode(env):
       if done: break
   logger.info('replay buffer size: %d', len(trainer.replay_buffer))
 
+  if FLAGS.saving:
+    saver = tf.train.Saver()
+    summary_writer = tf.summary.FileWriter('/tmp/breakout/summary',
+      tf.get_default_graph())
+
   config = tf.ConfigProto()
   config.gpu_options.allow_growth = True
   with tf.Session(config=config) as sess:
@@ -306,6 +316,15 @@ def run_episode(env):
               episode, step, epsilon, total_reward, loss)
             logger.info('episode max Q: %f, max Q: %f max R: %d',
               max_q, max_qs, max_total_reward)
+
+          if FLAGS.saving and \
+              episode % FLAGS.save_episode == 0 and episode != 0:
+            saver.save(sess, '/tmp/breakout/breakout', global_step=episode)
+
+          if FLAGS.saving and \
+              episode % FLAGS.summary_episode == 0:
+            summary = trainer.get_summary(sess)
+            summary_writer.add_summary(summary, global_step=episode)
           break
 
 
