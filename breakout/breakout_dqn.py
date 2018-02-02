@@ -39,6 +39,7 @@ tf.app.flags.DEFINE_float('eps', 0.01, 'eps for avoiding zero for RMSProp')
 tf.app.flags.DEFINE_integer('batch_size', 32, 'batch size to train')
 tf.app.flags.DEFINE_integer('image_width', 84, 'input image width')
 tf.app.flags.DEFINE_integer('image_height', 84, 'input image height')
+tf.app.flags.DEFINE_bool('use_huber', True, 'use huber loss')
 
 tf.app.flags.DEFINE_integer('display_episode', 1, 'display result per episode')
 tf.app.flags.DEFINE_integer('save_episode', 1000, 'save model per episode')
@@ -79,15 +80,18 @@ class DQN(object):
 
       action_mask = tf.one_hot(self.action, 4, name='action_mask')
       y = tf.reduce_sum(action_mask * self.q_values, axis=1, name='y')
-      #  self.loss = tf.reduce_mean(tf.square(y - target), name='loss')
 
-      # Huber's loss
-      diff = y - target
-      diff_abs = tf.abs(diff)
-      condition = tf.cast(tf.less_equal(diff_abs, 1.0), tf.float32)
-      error = tf.square(diff * condition) / 2.0 + \
-        (diff_abs - 0.5) * (1.0 - condition)
-      self.loss = tf.reduce_mean(error, name='loss')
+      if FLAGS.use_huber:
+        # Huber's loss
+        diff = y - target
+        diff_abs = tf.abs(diff)
+        condition = tf.cast(tf.less_equal(diff_abs, 1.0), tf.float32)
+        error = tf.square(diff * condition) / 2.0 + \
+          (diff_abs - 0.5) * (1.0 - condition)
+        self.loss = tf.reduce_mean(error, name='loss')
+      else:
+        self.loss = tf.reduce_mean(tf.square(y - target), name='loss')
+
       tf.summary.scalar('loss', self.loss)
 
     with tf.name_scope('optimization'):
@@ -228,7 +232,7 @@ def epsilon_greedy(q_values, epsilon):
 
 
 def process_image(state):
-  image = Image.fromarray(state).crop([8, 32, 144, 194])
+  image = Image.fromarray(state).crop([8, 32, 152, 194])
   #  image = image.resize([68, 65]).convert('L')
   image = image.resize([FLAGS.image_width, FLAGS.image_height],
     Image.NEAREST).convert('L')
