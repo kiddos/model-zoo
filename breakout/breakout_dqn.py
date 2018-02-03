@@ -300,6 +300,7 @@ def run_episode(env):
         next_state, reward, done, info = env.step(action)
         if info['ale.lives'] < 5: done = True
         next_state = process_image(next_state)
+        if done: reward = -1
         trainer.add_step([state, action, next_state, reward, done])
 
         step += 1
