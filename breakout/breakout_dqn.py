@@ -124,18 +124,13 @@ class DQN(object):
       inputs = tf.div(inputs, 255.0)
 
     with tf.name_scope('conv1'):
-      conv = tf.contrib.layers.conv2d(inputs, 32, stride=4, kernel_size=8,
-        trainable=trainable,
+      conv = tf.contrib.layers.conv2d(inputs, 16, stride=4, kernel_size=8,
+        trainable=trainable, padding='VALID',
         weights_initializer=tf.variance_scaling_initializer())
 
     with tf.name_scope('conv2'):
-      conv = tf.contrib.layers.conv2d(conv, 64, stride=2, kernel_size=4,
-        trainable=trainable,
-        weights_initializer=tf.variance_scaling_initializer())
-
-    with tf.name_scope('conv3'):
-      conv = tf.contrib.layers.conv2d(conv, 64, stride=1, kernel_size=3,
-        trainable=trainable,
+      conv = tf.contrib.layers.conv2d(conv, 32, stride=2, kernel_size=4,
+        trainable=trainable, padding='VALID',
         weights_initializer=tf.variance_scaling_initializer())
 
     with tf.name_scope('fully_connected'):
@@ -148,7 +143,7 @@ class DQN(object):
     with tf.name_scope('output'):
       outputs = tf.contrib.layers.fully_connected(fc, 4, activation_fn=None,
         trainable=trainable,
-        weights_initializer=tf.random_uniform_initializer(-0.001, 0.001))
+        weights_initializer=tf.glorot_uniform_initializer())
     return outputs
 
 
@@ -300,7 +295,6 @@ def run_episode(env):
         next_state, reward, done, info = env.step(action)
         if info['ale.lives'] < 5: done = True
         next_state = process_image(next_state)
-        if done: reward = -1
         trainer.add_step([state, action, next_state, reward, done])
 
         step += 1
