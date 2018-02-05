@@ -39,7 +39,7 @@ logger.setLevel(logging.INFO)
 
 def train():
   data = HumbackWhaleData(FLAGS.data, FLAGS.image_width, FLAGS.image_height)
-  num_classes = data.labels.max()
+  num_classes = data.labels.max() + 1
   model = HumbackWhaleModel(FLAGS.image_width, FLAGS.image_height,
     num_classes, FLAGS.learning_rate)
 
