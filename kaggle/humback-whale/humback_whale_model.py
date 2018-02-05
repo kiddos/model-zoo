@@ -30,8 +30,10 @@ class HumbackWhaleModel(object):
       _, valid_output = self.inference(self.valid_images)
 
     with tf.name_scope('evaluation'):
-      self.train_accuarcy = self.evaluate(self.output, name='train_accuracy')
-      self.valid_accuarcy = self.evaluate(valid_output, name='valid_accuracy')
+      self.train_accuarcy = self.evaluate(self.output, self.label,
+        name='train_accuracy')
+      self.valid_accuarcy = self.evaluate(valid_output, self.valid_label,
+        name='valid_accuracy')
 
       tf.summary.scalar('train_accuracy', self.train_accuarcy)
       tf.summary.scalar('valid_accuracy', self.valid_accuarcy)
@@ -91,9 +93,9 @@ class HumbackWhaleModel(object):
 
     return logits, outputs
 
-  def evaluate(self, output, name):
+  def evaluate(self, output, label, name):
     prediction = tf.cast(tf.argmax(output, axis=1), tf.int32)
-    equal = tf.cast(tf.equal(prediction, self.label), tf.float32)
+    equal = tf.cast(tf.equal(prediction, label), tf.float32)
     return tf.reduce_mean(equal, name=name)
 
 
