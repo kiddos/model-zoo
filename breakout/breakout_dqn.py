@@ -27,8 +27,8 @@ tf.app.flags.DEFINE_integer('max_episodes', 600000,
   'number of episodes to run')
 tf.app.flags.DEFINE_integer('update_frequency', 10000,
   'update target network per episode')
-tf.app.flags.DEFINE_integer('decay_to_episode', 50000,
-  'decay epsilon until episode')
+tf.app.flags.DEFINE_integer('decay_to_epoch', 1000000,
+  'decay epsilon until epoch')
 tf.app.flags.DEFINE_float('min_epsilon', 0.1, 'min epsilon to decay to')
 tf.app.flags.DEFINE_float('gamma', 0.99, 'discount factor')
 tf.app.flags.DEFINE_float('learning_rate', 0.00025, 'learning rate to train')
@@ -236,9 +236,9 @@ def process_image(state):
   return img
 
 
-def decay_epsilon(episode, to):
+def decay_epsilon(epoch, to):
   factor = to / -np.log(FLAGS.min_epsilon)
-  return np.exp(-episode / factor)
+  return np.exp(-epoch / factor)
 
 
 def run_episode(env):
@@ -278,7 +278,7 @@ def run_episode(env):
       env.step(1)
       state = process_image(state)
 
-      epsilon = decay_epsilon(episode, FLAGS.decay_to_episode)
+      epsilon = decay_epsilon(epoch, FLAGS.decay_to_epoch)
       if epsilon < FLAGS.min_epsilon: epsilon = FLAGS.min_epsilon
 
       step = 0
