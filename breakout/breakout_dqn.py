@@ -25,7 +25,7 @@ tf.app.flags.DEFINE_integer('replay_buffer_size', 300000,
   'replay buffer max size')
 tf.app.flags.DEFINE_integer('max_episodes', 600000,
   'number of episodes to run')
-tf.app.flags.DEFINE_integer('update_frequency', 300,
+tf.app.flags.DEFINE_integer('update_frequency', 10000,
   'update target network per episode')
 tf.app.flags.DEFINE_integer('decay_to_episode', 50000,
   'decay epsilon until episode')
@@ -219,15 +219,16 @@ class Trainer(object):
     return len(self.replay_buffer) >= FLAGS.init_replay_buffer_size
 
 
-def epsilon_greedy(q_values, epsilon):
-  max_p = np.argmax(q_values)
-  prob = np.ones(shape=[4]) * epsilon / 4.0
-  prob[max_p] += 1.0 - epsilon
-  return np.random.choice(np.arange(4), p=prob)
+def epsilon_greedy(trainer, sess, state, epsilon):
+  if random.random() < epsilon:
+    return random.randint(0, 3)
+  else:
+    action_prob = trainer.predict_action(sess, state)
+    return np.argmax(action_prob)
 
 
 def process_image(state):
-  image = Image.fromarray(state).crop([8, 32, 152, 194])
+  image = Image.fromarray(state).crop([8, 32, 152, 210])
   #  image = image.resize([68, 65]).convert('L')
   image = image.resize([FLAGS.image_width, FLAGS.image_height],
     Image.NEAREST).convert('L')
@@ -267,14 +268,13 @@ def run_episode(env):
   with tf.Session(config=config) as sess:
     logger.info('initializing variables')
     sess.run(tf.global_variables_initializer())
+    trainer.update_target(sess)
 
     max_total_reward = 0
+    epoch = 0
     for episode in range(FLAGS.max_episodes + 1):
-      if episode % FLAGS.update_frequency == 0:
-        trainer.update_target(sess)
-
       state = env.reset()
-      # start the game
+      #  start the game
       env.step(1)
       state = process_image(state)
 
@@ -283,15 +283,11 @@ def run_episode(env):
 
       step = 0
       total_reward = 0
-
-      q_values = trainer.predict_action(sess, state)
-      max_q = np.max(q_values)
       while True:
-        action_prob = trainer.predict_action(sess, state)
-        ma = np.max(action_prob)
-        if ma > max_q: max_q = ma
+        if epoch % FLAGS.update_frequency == 0:
+          trainer.update_target(sess)
 
-        action = epsilon_greedy(action_prob, epsilon)
+        action = epsilon_greedy(trainer, sess, state, epsilon)
         next_state, reward, done, info = env.step(action)
         if info['ale.lives'] < 5: done = True
         next_state = process_image(next_state)
@@ -302,6 +298,7 @@ def run_episode(env):
         state = next_state
 
         trainer.train(sess)
+        epoch += 1
 
         if FLAGS.render == 'True':
           env.render()
@@ -311,10 +308,10 @@ def run_episode(env):
             loss = trainer.compute_loss(sess)
             max_qs = trainer.max_q_values(sess)
 
-            logger.info('%d. steps: %d, eps: %f, total: %f, loss: %f',
-              episode, step, epsilon, total_reward, loss)
-            logger.info('episode max Q: %f, max Q: %f max R: %d',
-              max_q, max_qs, max_total_reward)
+            logger.info('%d. steps: %d, eps: %f, total: %f, max R: %f',
+              episode, step, epsilon, total_reward, max_total_reward)
+            logger.info('%d. max Q: %f, loss: %f',
+              epoch, max_qs, loss)
 
           if FLAGS.saving and \
               episode % FLAGS.save_episode == 0 and episode != 0:
