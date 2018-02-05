@@ -99,10 +99,10 @@ class DQN(object):
         name='learning_rate')
       optimizer = tf.train.RMSPropOptimizer(self.learning_rate,
         FLAGS.decay, FLAGS.momentum, FLAGS.eps)
-      #  self.train_ops = optimizer.minimize(self.loss)
-      grads = optimizer.compute_gradients(self.loss)
-      grads = [(tf.clip_by_value(g, -1.0, 1.0), v) for g, v in grads]
-      self.train_ops = optimizer.apply_gradients(grads)
+      self.train_ops = optimizer.minimize(self.loss)
+      #  grads = optimizer.compute_gradients(self.loss)
+      #  grads = [(tf.clip_by_value(g, -1.0, 1.0), v) for g, v in grads]
+      #  self.train_ops = optimizer.apply_gradients(grads)
 
       tf.summary.scalar('learning_rate', self.learning_rate)
 
