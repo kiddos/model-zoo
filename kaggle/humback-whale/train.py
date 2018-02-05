@@ -83,9 +83,13 @@ def train():
         saver.save(sess, '/tmp/humback-whale/model', global_step=epoch)
 
       if FLAGS.saving and epoch % FLAGS.summary_epoches == 0:
+        valid_images, valid_labels = data.get_batch(FLAGS.batch_size)
+
         summary = sess.run(model.summary, feed_dict={
           model.input_images: images,
           model.label: labels,
+          model.valid_images: valid_images,
+          model.valid_label: valid_labels,
           model.keep_prob: 1.0,
         })
         summary_writer.add_summary(summary, global_step=epoch)
