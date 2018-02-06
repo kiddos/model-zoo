@@ -19,7 +19,7 @@ tf.app.flags.DEFINE_string('environment', 'Breakout-v0',
   'openai gym environment to run')
 
 # hyperparameters
-tf.app.flags.DEFINE_integer('init_replay_buffer_size', 10000,
+tf.app.flags.DEFINE_integer('init_replay_buffer_size', 50000,
   'replay buffer starting size')
 tf.app.flags.DEFINE_integer('replay_buffer_size', 300000,
   'replay buffer max size')
