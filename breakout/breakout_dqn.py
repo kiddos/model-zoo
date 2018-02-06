@@ -1,6 +1,5 @@
 import tensorflow as tf
 import numpy as np
-import gym
 import random
 import coloredlogs
 import logging
@@ -11,11 +10,14 @@ from PIL import Image
 from collections import deque
 from argparse import ArgumentParser
 
+from environment import SkipFrameEnvironment
+from dqn import DQN, DQNConfig
+
 
 FLAGS = tf.app.flags.FLAGS
 tf.app.flags.DEFINE_boolean('saving', False, 'saving model')
 tf.app.flags.DEFINE_boolean('render', False, 'render environment')
-tf.app.flags.DEFINE_string('environment', 'Breakout-v0',
+tf.app.flags.DEFINE_string('environment', 'BreakoutNoFrameskip-v4',
   'openai gym environment to run')
 
 # hyperparameters
@@ -40,7 +42,7 @@ tf.app.flags.DEFINE_integer('batch_size', 32, 'batch size to train')
 tf.app.flags.DEFINE_integer('image_width', 84, 'input image width')
 tf.app.flags.DEFINE_integer('image_height', 84, 'input image height')
 tf.app.flags.DEFINE_bool('use_huber', True, 'use huber loss')
-tf.app.flags.DEFINE_integer('recent_history', 16, 'recent history to train')
+tf.app.flags.DEFINE_integer('skip', 4, 'skip frame')
 
 tf.app.flags.DEFINE_integer('display_episode', 1, 'display result per episode')
 tf.app.flags.DEFINE_integer('save_episode', 1000, 'save model per episode')
@@ -53,110 +55,23 @@ logger = logging.getLogger('breakout')
 logger.setLevel(logging.INFO)
 
 
-class DQN(object):
-  def __init__(self):
-    self._setup_inputs()
-
-    with tf.variable_scope('train'):
-      self.q_values = self.inference(self.state)
-    tf.summary.histogram('q_values', self.q_values)
-
-    with tf.variable_scope('target'):
-      self.next_q_values = self.inference(self.next_state, False)
-    tf.summary.histogram('next_q_values', self.next_q_values)
-
-    with tf.name_scope('copy_ops'):
-      train_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, 'train')
-      target_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, 'target')
-      self.copy_ops = []
-      assert len(train_vars) == len(target_vars)
-      assert len(train_vars) > 0
-      for i in range(len(train_vars)):
-        self.copy_ops.append(tf.assign(target_vars[i], train_vars[i]))
-
-    with tf.name_scope('loss'):
-      target = self.reward + FLAGS.gamma * \
-        tf.cast(tf.logical_not(self.done), tf.float32) * \
-        tf.reduce_max(self.next_q_values, axis=1)
-
-      action_mask = tf.one_hot(self.action, 4, name='action_mask')
-      y = tf.reduce_sum(action_mask * self.q_values, axis=1, name='y')
-
-      if FLAGS.use_huber:
-        # Huber's loss
-        diff = y - target
-        diff_abs = tf.abs(diff)
-        condition = tf.cast(tf.less_equal(diff_abs, 1.0), tf.float32)
-        error = tf.square(diff * condition) / 2.0 + \
-          (diff_abs - 0.5) * (1.0 - condition)
-        self.loss = tf.reduce_mean(error, name='loss')
-      else:
-        self.loss = tf.reduce_mean(tf.square(y - target), name='loss')
-
-      tf.summary.scalar('loss', self.loss)
-
-    with tf.name_scope('optimization'):
-      self.learning_rate = tf.Variable(FLAGS.learning_rate, trainable=False,
-        name='learning_rate')
-      optimizer = tf.train.RMSPropOptimizer(self.learning_rate,
-        FLAGS.decay, FLAGS.momentum, FLAGS.eps)
-      self.train_ops = optimizer.minimize(self.loss)
-      #  grads = optimizer.compute_gradients(self.loss)
-      #  grads = [(tf.clip_by_value(g, -1.0, 1.0), v) for g, v in grads]
-      #  self.train_ops = optimizer.apply_gradients(grads)
-
-      tf.summary.scalar('learning_rate', self.learning_rate)
-
-    with tf.name_scope('summary'):
-      self.summary = tf.summary.merge_all()
-
-  def _setup_inputs(self):
-    self.state = tf.placeholder(dtype=tf.float32, name='state',
-      shape=[None, FLAGS.image_height, FLAGS.image_width, 1])
-    self.next_state = tf.placeholder(dtype=tf.float32, name='next_state',
-      shape=[None, FLAGS.image_height, FLAGS.image_width, 1])
-    self.reward = tf.placeholder(dtype=tf.float32, name='reward', shape=[None])
-    self.done = tf.placeholder(dtype=tf.bool, name='done', shape=[None])
-    self.action = tf.placeholder(dtype=tf.int32, name='action',
-      shape=[None])
-
-  def inference(self, inputs, trainable=True):
-    with tf.name_scope('norm'):
-      inputs = tf.div(inputs, 255.0)
-
-    with tf.name_scope('conv1'):
-      conv = tf.contrib.layers.conv2d(inputs, 16, stride=4, kernel_size=8,
-        trainable=trainable, padding='VALID',
-        weights_initializer=tf.variance_scaling_initializer())
-
-    with tf.name_scope('conv2'):
-      conv = tf.contrib.layers.conv2d(conv, 32, stride=2, kernel_size=4,
-        trainable=trainable, padding='VALID',
-        weights_initializer=tf.variance_scaling_initializer())
-
-    with tf.name_scope('fully_connected'):
-      connect_shape = conv.get_shape().as_list()
-      connect_size = connect_shape[1] * connect_shape[2] * connect_shape[3]
-      fc = tf.contrib.layers.fully_connected(
-        tf.reshape(conv, [-1, connect_size]), 256, trainable=trainable,
-        weights_initializer=tf.variance_scaling_initializer())
-
-    with tf.name_scope('output'):
-      outputs = tf.contrib.layers.fully_connected(fc, 4, activation_fn=None,
-        trainable=trainable,
-        weights_initializer=tf.glorot_uniform_initializer())
-    return outputs
-
-
 class Trainer(object):
   def __init__(self):
     self.replay_buffer = deque()
-    self.dqn = DQN()
+
+    config = DQNConfig()
+    config.learning_rate = FLAGS.learning_rate
+    config.gamma = FLAGS.gamma
+    config.decay = FLAGS.decay
+    config.momentum = FLAGS.momentum
+    config.eps = FLAGS.eps
+    config.input_width = FLAGS.image_width
+    config.input_height = FLAGS.image_height
+    config.skip = FLAGS.skip
+    self.dqn = DQN(config, FLAGS.use_huber)
 
   def get_batch(self, batch_size):
     batch = random.sample(self.replay_buffer, batch_size)
-    for i in range(FLAGS.recent_history):
-      batch.append(self.replay_buffer[-(i + 1)])
     state_batch = np.array([b[0] for b in batch])
     action_batch = np.array([b[1] for b in batch])
     next_state_batch = np.array([b[2] for b in batch])
@@ -230,18 +145,11 @@ def epsilon_greedy(trainer, sess, state, epsilon):
     return np.argmax(action_prob)
 
 
-def process_image(state):
-  image = Image.fromarray(state).crop([8, 32, 152, 210])
-  #  image = image.resize([68, 65]).convert('L')
-  image = image.resize([FLAGS.image_width, FLAGS.image_height],
-    Image.NEAREST).convert('L')
-  img = np.expand_dims(np.array(image, dtype=np.uint8), axis=2)
-  return img
-
-
 def decay_epsilon(epoch, to):
   factor = to / -np.log(FLAGS.min_epsilon)
-  return np.exp(-epoch / factor)
+  epsilon = np.exp(-epoch / factor)
+  if epsilon < FLAGS.min_epsilon: epsilon = FLAGS.min_epsilon
+  return epsilon
 
 
 def run_episode(env):
@@ -251,11 +159,9 @@ def run_episode(env):
   logger.info('filling replay buffer...')
   while not trainer.ready():
     state = env.reset()
-    state = process_image(state)
     while True:
-      action = env.action_space.sample()
-      next_state, reward, done, info = env.step(action)
-      next_state = process_image(next_state)
+      action = random.randint(0, 3)
+      next_state, reward, done = env.step(action)
       trainer.add_step([state, action, next_state, reward, done])
       state = next_state
       if done: break
@@ -277,12 +183,8 @@ def run_episode(env):
     epoch = 0
     for episode in range(FLAGS.max_episodes + 1):
       state = env.reset()
-      #  start the game
-      env.step(1)
-      state = process_image(state)
 
       epsilon = decay_epsilon(epoch, FLAGS.decay_to_epoch)
-      if epsilon < FLAGS.min_epsilon: epsilon = FLAGS.min_epsilon
 
       step = 0
       total_reward = 0
@@ -291,9 +193,7 @@ def run_episode(env):
           trainer.update_target(sess)
 
         action = epsilon_greedy(trainer, sess, state, epsilon)
-        next_state, reward, done, info = env.step(action)
-        if info['ale.lives'] < 5: done = True
-        next_state = process_image(next_state)
+        next_state, reward, done = env.step(action)
         trainer.add_step([state, action, next_state, reward, done])
 
         step += 1
@@ -328,7 +228,8 @@ def run_episode(env):
 
 
 def main(_):
-  env = gym.make(FLAGS.environment)
+  env = SkipFrameEnvironment(FLAGS.environment, FLAGS.skip,
+    FLAGS.image_width, FLAGS.image_height)
   run_episode(env)
 
 
