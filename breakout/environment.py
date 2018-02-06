@@ -54,22 +54,25 @@ class SkipFrameEnvironment(object):
 
 def main():
   env = SkipFrameEnvironment('BreakoutNoFrameskip-v4', 4, 84, 84)
-  state = env.reset()
-  steps = 0
-  total_reward = 0
-  while True:
-    action = randint(0, 3)
-    state, reward, done = env.step(action)
-    steps += 1
-    total_reward += reward
 
-    env.render()
+  for i in range(100):
+    state = env.reset()
+    steps = 0
+    total_reward = 0
+    while True:
+      action = randint(0, 3)
+      state, reward, done = env.step(action)
+      assert state.shape[2] == 4
+      steps += 1
+      total_reward += reward
 
-    if done:
-      break
+      env.render()
 
-  print('steps: %d' % steps)
-  print('total reward: %f' % (total_reward))
+      if done:
+        break
+
+    print('steps: %d' % steps)
+    print('total reward: %f' % (total_reward))
 
 
 if __name__ == '__main__':
