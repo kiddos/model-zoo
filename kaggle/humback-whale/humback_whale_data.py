@@ -14,12 +14,10 @@ class HumbackWhaleData(object):
     if os.path.isfile(dbname):
       self.connection = sqlite3.connect(dbname)
       self.cursor = self.connection.cursor()
-
-      self._load()
     else:
       print('%s not found' % (dbname))
 
-  def _load(self):
+  def load(self):
     self.cursor.execute("""SELECT i.image, i.width, i.height, l.label
       FROM images i, labels l WHERE i.label == l.name;""")
     raw_data = self.cursor.fetchall()
@@ -33,6 +31,11 @@ class HumbackWhaleData(object):
       self.labels.append(entry[3] - 1)
 
     self.labels = np.array(self.labels)
+
+  def load_label_mapping(self):
+    self.cursor.execute("""SELECT * FROM labels;""")
+    self.label_mapping = {label - 1: name
+      for label, name in self.cursor.fetchall()}
 
   def random_preprocess(self, image_data):
     image = Image.fromarray(image_data)
@@ -62,6 +65,9 @@ class HumbackWhaleData(object):
 
 def main():
   data = HumbackWhaleData('./humback-whale.sqlite3', 32, 32)
+  data.load()
+  data.load_label_mapping()
+
   images, labels = data.get_batch(256)
   print(data.labels.max())
   print(images.shape)
