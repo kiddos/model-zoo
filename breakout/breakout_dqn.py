@@ -40,6 +40,7 @@ tf.app.flags.DEFINE_integer('batch_size', 32, 'batch size to train')
 tf.app.flags.DEFINE_integer('image_width', 84, 'input image width')
 tf.app.flags.DEFINE_integer('image_height', 84, 'input image height')
 tf.app.flags.DEFINE_bool('use_huber', True, 'use huber loss')
+tf.app.flags.DEFINE_integer('recent_history', 16, 'recent history to train')
 
 tf.app.flags.DEFINE_integer('display_episode', 1, 'display result per episode')
 tf.app.flags.DEFINE_integer('save_episode', 1000, 'save model per episode')
@@ -154,6 +155,8 @@ class Trainer(object):
 
   def get_batch(self, batch_size):
     batch = random.sample(self.replay_buffer, batch_size)
+    for i in range(FLAGS.recent_history):
+      batch.append(self.replay_buffer[-(i + 1)])
     state_batch = np.array([b[0] for b in batch])
     action_batch = np.array([b[1] for b in batch])
     next_state_batch = np.array([b[2] for b in batch])
