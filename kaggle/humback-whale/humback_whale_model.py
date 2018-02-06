@@ -55,25 +55,50 @@ class HumbackWhaleModel(object):
 
   def inference(self, inputs):
     with tf.name_scope('conv1'):
-      conv = tf.contrib.layers.conv2d(inputs, 32, 3, 1,
+      conv = tf.contrib.layers.conv2d(inputs, 64, 3, 1,
         weights_initializer=tf.random_normal_initializer(stddev=0.001))
 
     with tf.name_scope('pool1'):
       pool = tf.contrib.layers.max_pool2d(conv, 2)
 
     with tf.name_scope('conv2'):
-      conv = tf.contrib.layers.conv2d(pool, 64, 3, 1,
+      conv = tf.contrib.layers.conv2d(pool, 128, 3, 1,
+        weights_initializer=tf.variance_scaling_initializer())
+
+      conv = tf.contrib.layers.conv2d(conv, 64, 1, 1,
+        weights_initializer=tf.variance_scaling_initializer())
+
+      conv = tf.contrib.layers.conv2d(conv, 128, 3, 1,
         weights_initializer=tf.variance_scaling_initializer())
 
     with tf.name_scope('pool2'):
       pool = tf.contrib.layers.max_pool2d(conv, 2)
 
     with tf.name_scope('conv3'):
-      conv = tf.contrib.layers.conv2d(pool, 128, 3, 1,
+      conv = tf.contrib.layers.conv2d(pool, 256, 3, 1,
+        weights_initializer=tf.variance_scaling_initializer())
+
+      conv = tf.contrib.layers.conv2d(conv, 128, 1, 1,
+        weights_initializer=tf.variance_scaling_initializer())
+
+      conv = tf.contrib.layers.conv2d(conv, 256, 3, 1,
         weights_initializer=tf.variance_scaling_initializer())
 
     with tf.name_scope('pool3'):
       pool = tf.contrib.layers.max_pool2d(conv, 2)
+
+    with tf.name_scope('conv4'):
+      conv = tf.contrib.layers.conv2d(pool, 512, 3, 1,
+        weights_initializer=tf.variance_scaling_initializer())
+
+      conv = tf.contrib.layers.conv2d(pool, 512, 3, 1,
+        weights_initializer=tf.variance_scaling_initializer())
+
+      conv = tf.contrib.layers.conv2d(pool, 128, 3, 1,
+        weights_initializer=tf.variance_scaling_initializer())
+
+      conv = tf.contrib.layers.conv2d(pool, 64, 3, 1,
+        weights_initializer=tf.variance_scaling_initializer())
 
     with tf.name_scope('drop3'):
       drop = tf.nn.dropout(pool, self.keep_prob)
