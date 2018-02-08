@@ -19,7 +19,7 @@ class SkipFrameEnvironment(object):
     end = False
     states = [self.process_image(state)]
     self.env.step(1)
-    for i in range(self.skip - 2):
+    for i in range(self.skip - 1):
       state, reward, done, _ = self.env.step(randint(0, self.action_size - 1))
       R += reward
       states.append(self.process_image(state))
@@ -62,7 +62,7 @@ def main():
     total_reward = 0
     while True:
       action = randint(0, 3)
-      state, reward, done = env.step(action)
+      state, reward, done, lives = env.step(action)
       assert state.shape[2] == 4
       steps += 1
       total_reward += reward
