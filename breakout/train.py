@@ -194,7 +194,7 @@ def run_episode(env):
 
         action = epsilon_greedy(trainer, sess, state, epsilon)
         next_state, reward, done, lives = env.step(action)
-        if lives < 5: done = True
+        #  if lives < 5: done = True
         trainer.add_step([state, action, next_state, reward, done])
 
         step += 1
