@@ -38,7 +38,7 @@ class SkipFrameEnvironment(object):
       states.append(self.process_image(state))
       R += reward
       end |= done
-    return np.concatenate(states, axis=2), R, end
+    return np.concatenate(states, axis=2), R, end, info['ale.lives']
 
   def process_image(self, state):
     image = Image.fromarray(state).crop([8, 32, 152, 210])
