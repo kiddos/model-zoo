@@ -10,14 +10,14 @@ from PIL import Image
 from collections import deque
 from argparse import ArgumentParser
 
-from environment import SkipFrameEnvironment
+from environment import HistoryFrameEnvironment
 from dqn import DQN, DQNConfig
 
 
 FLAGS = tf.app.flags.FLAGS
 tf.app.flags.DEFINE_boolean('saving', False, 'saving model')
 tf.app.flags.DEFINE_boolean('render', False, 'render environment')
-tf.app.flags.DEFINE_string('environment', 'BreakoutNoFrameskip-v4',
+tf.app.flags.DEFINE_string('environment', 'BreakoutDeterministic-v4',
   'openai gym environment to run')
 
 # hyperparameters
@@ -43,6 +43,7 @@ tf.app.flags.DEFINE_integer('image_width', 84, 'input image width')
 tf.app.flags.DEFINE_integer('image_height', 84, 'input image height')
 tf.app.flags.DEFINE_bool('use_huber', True, 'use huber loss')
 tf.app.flags.DEFINE_integer('skip', 4, 'skip frame')
+tf.app.flags.DEFINE_integer('history_length', 4, 'history length')
 
 tf.app.flags.DEFINE_integer('display_episode', 1, 'display result per episode')
 tf.app.flags.DEFINE_integer('save_episode', 1000, 'save model per episode')
@@ -229,8 +230,8 @@ def run_episode(env):
 
 
 def main(_):
-  env = SkipFrameEnvironment(FLAGS.environment, FLAGS.skip,
-    FLAGS.image_width, FLAGS.image_height)
+  env = HistoryFrameEnvironment(FLAGS.environment,
+    FLAGS.history_length, FLAGS.image_width, FLAGS.image_height)
   run_episode(env)
 
 
