@@ -69,13 +69,14 @@ class HistoryFrameEnvironment(object):
     self.action_size = self.env.action_space.n
     self.states = []
     self.lives = 0
-
-    for _ in range(history_size):
-      self.history.append(np.zeros([image_width, image_height, 1],
-        dtype=np.uint8))
+    self.history_size = history_size
 
   def reset(self):
     if self.lives == 0:
+      for _ in range(self.history_size - 1):
+        self.history.append(
+          np.zeros([self.image_width, self.image_height, 1], dtype=np.uint8))
+
       state = self.env.reset()
       self.history.append(process_image(
         state, self.image_width, self.image_height))
