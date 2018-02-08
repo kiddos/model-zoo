@@ -99,15 +99,13 @@ class DQN(object):
         weights_initializer=tf.variance_scaling_initializer())
 
     with tf.name_scope('fully_connected'):
-      connect_shape = conv.get_shape().as_list()
-      connect_size = connect_shape[1] * connect_shape[2] * connect_shape[3]
       fc = tf.contrib.layers.fully_connected(
-        tf.reshape(conv, [-1, connect_size]), 256, trainable=trainable,
+        tf.contrib.layers.flatten(conv), 256, trainable=trainable,
         weights_initializer=tf.variance_scaling_initializer())
 
     with tf.name_scope('output'):
       w = tf.get_variable('ow', shape=[256, self.config.action_size],
-        initializer=tf.glorot_uniform_initializer())
+        initializer=tf.variance_scaling_initializer())
       b = tf.get_variable('ob', shape=[self.config.action_size],
         initializer=tf.zeros_initializer())
       outputs = tf.add(tf.matmul(fc, w), b, name='q_values')
