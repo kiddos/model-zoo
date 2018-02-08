@@ -101,8 +101,8 @@ class Trainer(object):
       self.replay_buffer.popleft()
 
   def predict_action(self, sess, state):
-    return sess.run(self.dqn.next_q_values, feed_dict={
-      self.dqn.next_state: np.expand_dims(state, axis=0)
+    return sess.run(self.dqn.q_values, feed_dict={
+      self.dqn.state: np.expand_dims(state, axis=0)
     })[0]
 
   def compute_loss(self, sess):
