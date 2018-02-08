@@ -161,7 +161,7 @@ def run_episode(env):
     state = env.reset()
     while True:
       action = random.randint(0, 3)
-      next_state, reward, done = env.step(action)
+      next_state, reward, done, lives = env.step(action)
       trainer.add_step([state, action, next_state, reward, done])
       state = next_state
       if done: break
@@ -193,7 +193,8 @@ def run_episode(env):
           trainer.update_target(sess)
 
         action = epsilon_greedy(trainer, sess, state, epsilon)
-        next_state, reward, done = env.step(action)
+        next_state, reward, done, lives = env.step(action)
+        if lives < 5: done = True
         trainer.add_step([state, action, next_state, reward, done])
 
         step += 1
