@@ -5,7 +5,7 @@ import logging
 import gym
 import time
 
-from environment import SkipFrameEnvironment
+from environment import HistoryFrameEnvironment
 
 
 logging.basicConfig()
@@ -31,7 +31,7 @@ def load_graph():
 
 
 def main(_):
-  env = SkipFrameEnvironment('BreakoutNoFrameskip-v4', 4, 84, 84)
+  env = HistoryFrameEnvironment('BreakoutDeterministic-v4', 4, 84, 84)
 
   graph = load_graph()
   input_state = graph.get_tensor_by_name('import/state:0')
@@ -49,7 +49,7 @@ def main(_):
           input_state: np.expand_dims(state, axis=0)
         })
         action = np.argmax(action_prob[0, :])
-        state, reward, done = env.step(action)
+        state, reward, done, lives = env.step(action)
         assert state.shape[2] == 4
         steps += 1
         total_reward += reward
