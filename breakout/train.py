@@ -41,7 +41,7 @@ tf.app.flags.DEFINE_float('eps', 0.01, 'eps for avoiding zero for RMSProp')
 tf.app.flags.DEFINE_integer('batch_size', 32, 'batch size to train')
 tf.app.flags.DEFINE_integer('image_width', 84, 'input image width')
 tf.app.flags.DEFINE_integer('image_height', 84, 'input image height')
-tf.app.flags.DEFINE_bool('use_huber', True, 'use huber loss')
+tf.app.flags.DEFINE_bool('use_huber', False, 'use huber loss')
 tf.app.flags.DEFINE_integer('skip', 4, 'skip frame')
 tf.app.flags.DEFINE_integer('history_length', 4, 'history length')
 
@@ -153,6 +153,15 @@ def decay_epsilon(epoch, to):
   return epsilon
 
 
+def prepare_folder():
+  index = 0
+  folder = os.path.join('/tmp', 'breakout_%d' % index)
+  while os.path.isdir(folder):
+    index += 1
+    folder = os.path.join('/tmp', 'breakout_%d' % index)
+  return folder
+
+
 def run_episode(env):
   trainer = Trainer()
 
@@ -169,8 +178,9 @@ def run_episode(env):
   logger.info('replay buffer size: %d', len(trainer.replay_buffer))
 
   if FLAGS.saving:
+    folder = prepare_folder()
     saver = tf.train.Saver()
-    summary_writer = tf.summary.FileWriter('/tmp/breakout/summary',
+    summary_writer = tf.summary.FileWriter(os.path.join(folder, 'summary'),
       tf.get_default_graph())
 
   config = tf.ConfigProto()
@@ -182,6 +192,7 @@ def run_episode(env):
 
     max_total_reward = 0
     epoch = 0
+    actions = [0 for _ in range(env.action_size)]
     for episode in range(FLAGS.max_episodes + 1):
       state = env.reset()
 
@@ -194,8 +205,8 @@ def run_episode(env):
           trainer.update_target(sess)
 
         action = epsilon_greedy(trainer, sess, state, epsilon)
+        actions[action] += 1
         next_state, reward, done, lives = env.step(action)
-        #  if lives < 5: done = True
         trainer.add_step([state, action, next_state, reward, done])
 
         step += 1
@@ -217,10 +228,12 @@ def run_episode(env):
               episode, step, epsilon, total_reward, max_total_reward)
             logger.info('%d. max Q: %f, loss: %f',
               epoch, max_qs, loss)
+            logger.info('actions: %s', str(actions))
+            actions = [0 for _ in range(env.action_size)]
 
           if FLAGS.saving and \
               episode % FLAGS.save_episode == 0 and episode != 0:
-            saver.save(sess, '/tmp/breakout/breakout', global_step=episode)
+            saver.save(sess, folder, global_step=episode)
 
           if FLAGS.saving and \
               episode % FLAGS.summary_episode == 0:
