@@ -12,17 +12,18 @@ class HumbackWhaleModel(object):
     self._setup_inputs()
 
     with tf.variable_scope('inference'):
-      logits, self.output = self.inference(self.input_images)
+      self.logits, self.output = self.inference(self.input_images)
 
     with tf.name_scope('loss'):
       labels = tf.one_hot(self.label, num_classes, name='label_vec')
       self.loss = tf.reduce_mean(
-        tf.nn.softmax_cross_entropy_with_logits(logits=logits,
-          labels=labels, name='loss'))
+        tf.nn.softmax_cross_entropy_with_logits(
+          logits=self.logits, labels=labels), name='loss')
       tf.summary.scalar('loss', self.loss)
 
     with tf.name_scope('optimizer'):
-      self.learning_rate = tf.Variable(learning_rate, name='learning_rate')
+      self.learning_rate = tf.Variable(learning_rate,
+          trainable=False, name='learning_rate')
       optimizer = tf.train.GradientDescentOptimizer(self.learning_rate)
       self.train_ops = optimizer.minimize(self.loss)
 
@@ -56,58 +57,40 @@ class HumbackWhaleModel(object):
   def inference(self, inputs):
     with tf.name_scope('conv1'):
       conv = tf.contrib.layers.conv2d(inputs, 64, 3, 1,
-        weights_initializer=tf.random_normal_initializer(stddev=0.001))
+        weights_initializer=tf.random_normal_initializer(stddev=0.01))
 
     with tf.name_scope('pool1'):
       pool = tf.contrib.layers.max_pool2d(conv, 2)
 
     with tf.name_scope('conv2'):
-      conv = tf.contrib.layers.conv2d(pool, 128, 3, 1,
-        weights_initializer=tf.variance_scaling_initializer())
-
-      conv = tf.contrib.layers.conv2d(conv, 64, 1, 1,
-        weights_initializer=tf.variance_scaling_initializer())
-
-      conv = tf.contrib.layers.conv2d(conv, 128, 3, 1,
-        weights_initializer=tf.variance_scaling_initializer())
+      conv = self.stack_conv(pool, 128, 3, 2)
 
     with tf.name_scope('pool2'):
       pool = tf.contrib.layers.max_pool2d(conv, 2)
 
+    with tf.name_scope('drop2'):
+      drop = tf.nn.dropout(pool, self.keep_prob)
+
     with tf.name_scope('conv3'):
-      conv = tf.contrib.layers.conv2d(pool, 256, 3, 1,
-        weights_initializer=tf.variance_scaling_initializer())
-
-      conv = tf.contrib.layers.conv2d(conv, 128, 1, 1,
-        weights_initializer=tf.variance_scaling_initializer())
-
-      conv = tf.contrib.layers.conv2d(conv, 256, 3, 1,
-        weights_initializer=tf.variance_scaling_initializer())
+      conv = self.stack_conv(drop, 256, 3, 4)
 
     with tf.name_scope('pool3'):
       pool = tf.contrib.layers.max_pool2d(conv, 2)
 
-    with tf.name_scope('conv4'):
-      conv = tf.contrib.layers.conv2d(pool, 512, 3, 1,
-        weights_initializer=tf.variance_scaling_initializer())
-
-      conv = tf.contrib.layers.conv2d(pool, 512, 3, 1,
-        weights_initializer=tf.variance_scaling_initializer())
-
-      conv = tf.contrib.layers.conv2d(pool, 128, 3, 1,
-        weights_initializer=tf.variance_scaling_initializer())
-
-      conv = tf.contrib.layers.conv2d(pool, 64, 3, 1,
-        weights_initializer=tf.variance_scaling_initializer())
-
     with tf.name_scope('drop3'):
       drop = tf.nn.dropout(pool, self.keep_prob)
 
+    with tf.name_scope('conv4'):
+      conv = self.stack_conv(drop, 512, 3, 6)
+      conv = tf.contrib.layers.conv2d(conv, 64, 3, 1,
+        weights_initializer=tf.variance_scaling_initializer())
+
+    with tf.name_scope('drop4'):
+      drop = tf.nn.dropout(pool, self.keep_prob)
+
     with tf.name_scope('fully_connected'):
-      connect_shape = drop.get_shape()
-      connect_size = connect_shape[1] * connect_shape[2] * connect_shape[3]
-      fc = tf.contrib.layers.fully_connected(
-        tf.reshape(drop, [-1, connect_size]), 256,
+      flatten = tf.contrib.layers.flatten(drop)
+      fc = tf.contrib.layers.fully_connected(flatten, 512,
         weights_initializer=tf.variance_scaling_initializer())
 
     with tf.name_scope('outputs'):
@@ -118,6 +101,16 @@ class HumbackWhaleModel(object):
 
     return logits, outputs
 
+  def stack_conv(self, inputs, size, ksize, stack=1):
+    conv = tf.contrib.layers.conv2d(inputs, size, ksize, 1,
+      weights_initializer=tf.variance_scaling_initializer())
+    for _ in range(stack):
+      conv = tf.contrib.layers.conv2d(conv, size / 2, 1, 1,
+        weights_initializer=tf.variance_scaling_initializer())
+      conv = tf.contrib.layers.conv2d(conv, size, ksize, 1,
+        weights_initializer=tf.variance_scaling_initializer())
+    return conv
+
   def evaluate(self, output, label, name):
     prediction = tf.cast(tf.argmax(output, axis=1), tf.int32)
     equal = tf.cast(tf.equal(prediction, label), tf.float32)
@@ -125,27 +118,29 @@ class HumbackWhaleModel(object):
 
 
 def main():
-  model = HumbackWhaleModel(32, 32, 4000, 1e-3)
+  image_size = 64
+  model = HumbackWhaleModel(image_size, image_size, 4251, 1e-3)
 
   if os.path.isdir('train'):
     images = os.listdir('train')
     image_path = os.path.join('train', random.sample(images, 1)[0])
     img = Image.open(image_path)
     img = img.convert('L')
-    img = img.resize([32, 32], Image.NEAREST)
-    img = np.reshape(np.array(img), [1, 32, 32, 1])
+    img = img.resize([image_size, image_size], Image.NEAREST)
+    img = np.reshape(np.array(img), [1, image_size, image_size, 1])
 
     config = tf.ConfigProto()
     config.gpu_options.allow_growth = True
     with tf.Session(config=config) as sess:
       sess.run(tf.global_variables_initializer())
 
-      output = sess.run(model.output, feed_dict={
+      output, logits = sess.run([model.output, model.logits], feed_dict={
         model.input_images: img,
         model.keep_prob: 1.0
       })
       print('image: %s' % image_path)
       print('output: %s, %d' % (str(output), np.argmax(output)))
+      print('logits: %s, %d' % (str(logits), np.argmax(logits)))
 
 
 if __name__ == '__main__':
