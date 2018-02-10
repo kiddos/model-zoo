@@ -88,7 +88,8 @@ class DQN(object):
     with tf.name_scope('norm'):
       inputs = tf.div(inputs, 255.0)
       images = tf.split(inputs, [1, 1, 1, 1], axis=3)
-      tf.summary.image('input_images', images[0])
+      for i in range(4):
+        tf.summary.image('input_images_%d' % i, images[i])
 
     with tf.name_scope('conv1'):
       conv = tf.contrib.layers.conv2d(inputs, 32, stride=4, kernel_size=8,
