@@ -233,7 +233,8 @@ def run_episode(env):
 
           if FLAGS.saving and \
               episode % FLAGS.save_episode == 0 and episode != 0:
-            saver.save(sess, folder, global_step=episode)
+            saver.save(sess, os.path.join(folder, 'breakout'),
+              global_step=episode)
 
           if FLAGS.saving and \
               episode % FLAGS.summary_episode == 0:
