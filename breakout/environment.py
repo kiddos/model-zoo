@@ -90,7 +90,9 @@ class HistoryFrameEnvironment(object):
     state, reward, done, info = self.env.step(action)
     self.history.append(process_image(
       state, self.image_width, self.image_height))
-    done = info['ale.lives'] < self.lives
+    if info['ale.lives'] < self.lives:
+      done = True
+      reward = -1
     self.lives = info['ale.lives']
     return np.concatenate(self.history, axis=2), \
       reward, done, info['ale.lives']
