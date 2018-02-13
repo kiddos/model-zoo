@@ -17,7 +17,7 @@ from dqn import DQN, DQNConfig
 FLAGS = tf.app.flags.FLAGS
 tf.app.flags.DEFINE_boolean('saving', False, 'saving model')
 tf.app.flags.DEFINE_boolean('render', False, 'render environment')
-tf.app.flags.DEFINE_string('environment', 'BreakoutDeterministic-v4',
+tf.app.flags.DEFINE_string('environment', 'BreakoutDeterministic-v0',
   'openai gym environment to run')
 
 # hyperparameters
@@ -219,7 +219,14 @@ def run_episode(env):
         if FLAGS.render == 'True':
           env.render()
         if done:
-          if total_reward > max_total_reward: max_total_reward = total_reward
+          if total_reward > max_total_reward:
+            max_total_reward = total_reward
+
+            if FLAGS.saving and \
+                episode % FLAGS.save_episode == 0 and episode != 0:
+              saver.save(sess, os.path.join(folder, 'breakout'),
+                global_step=episode)
+
           if episode % FLAGS.display_episode == 0:
             loss = trainer.compute_loss(sess)
             max_qs = trainer.max_q_values(sess)
@@ -230,11 +237,6 @@ def run_episode(env):
               epoch, max_qs, loss)
             logger.info('actions: %s', str(actions))
             actions = [0 for _ in range(env.action_size)]
-
-          if FLAGS.saving and \
-              episode % FLAGS.save_episode == 0 and episode != 0:
-            saver.save(sess, os.path.join(folder, 'breakout'),
-              global_step=episode)
 
           if FLAGS.saving and \
               episode % FLAGS.summary_episode == 0:
