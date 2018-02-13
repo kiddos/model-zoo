@@ -67,23 +67,23 @@ class HistoryFrameEnvironment(object):
     self.image_height = image_height
     self.env = gym.make(name)
     self.action_size = self.env.action_space.n
-    self.states = []
     self.lives = 0
     self.history_size = history_size
 
   def reset(self):
-    if self.lives == 0:
-      for _ in range(self.history_size - 1):
-        self.history.append(
-          np.zeros([self.image_width, self.image_height, 1], dtype=np.uint8))
+    for _ in range(self.history_size - 1):
+      self.history.append(
+        np.zeros([self.image_width, self.image_height, 1], dtype=np.uint8))
 
+    if self.lives == 0:
       state = self.env.reset()
-      self.history.append(process_image(
-        state, self.image_width, self.image_height))
     else:
       noop = 0
       state, _, _, info = self.env.step(noop)
       self.lives = info['ale.lives']
+
+    self.history.append(process_image(
+      state, self.image_width, self.image_height))
     return np.concatenate(self.history, axis=2)
 
   def step(self, action):
@@ -104,7 +104,7 @@ class HistoryFrameEnvironment(object):
 
 def main():
   #  env = SkipFrameEnvironment('BreakoutNoFrameskip-v4', 4, 84, 84)
-  env = HistoryFrameEnvironment('BreakoutDeterministic-v4', 4, 84, 84)
+  env = HistoryFrameEnvironment('BreakoutDeterministic-v0', 4, 84, 84)
 
   for i in range(100):
     state = env.reset()
