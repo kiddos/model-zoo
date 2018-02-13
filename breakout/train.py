@@ -222,8 +222,7 @@ def run_episode(env):
           if total_reward > max_total_reward:
             max_total_reward = total_reward
 
-            if FLAGS.saving and \
-                episode % FLAGS.save_episode == 0 and episode != 0:
+            if FLAGS.saving:
               saver.save(sess, os.path.join(folder, 'breakout'),
                 global_step=episode)
 
