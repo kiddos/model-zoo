@@ -31,7 +31,7 @@ def load_graph():
 
 
 def main(_):
-  env = HistoryFrameEnvironment('BreakoutDeterministic-v4', 4, 84, 84)
+  env = HistoryFrameEnvironment('BreakoutDeterministic-v0', 4, 84, 84)
 
   graph = load_graph()
   input_state = graph.get_tensor_by_name('import/state:0')
