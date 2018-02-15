@@ -35,6 +35,8 @@ class DQN(object):
       assert len(train_vars) > 0
       for i in range(len(train_vars)):
         self.copy_ops.append(tf.assign(target_vars[i], train_vars[i]))
+        assert target_vars[i] not in tf.trainable_variables()
+        assert train_vars[i] in tf.trainable_variables()
 
     with tf.name_scope('loss'):
       target = self.reward + config.gamma * \
@@ -44,17 +46,15 @@ class DQN(object):
       action_mask = tf.one_hot(self.action,
         config.action_size, name='action_mask')
       y = tf.reduce_sum(action_mask * self.q_values, axis=1, name='y')
+      diff = y - target
 
       if use_huber:
         # Huber's loss
-        diff = y - target
-        diff_abs = tf.abs(diff)
-        condition = tf.cast(tf.less_equal(diff_abs, 1.0), tf.float32)
-        error = tf.square(diff * condition) / 2.0 + \
-          (diff_abs - 0.5) * (1.0 - condition)
+        error = tf.where(tf.abs(diff) < 1.0,
+          0.5 * tf.square(diff), tf.abs(diff) - 0.5)
         self.loss = tf.reduce_mean(error, name='loss')
       else:
-        self.loss = tf.reduce_mean(tf.square(y - target), name='loss')
+        self.loss = tf.reduce_mean(tf.square(diff), name='loss')
 
       tf.summary.scalar('loss', self.loss)
 
@@ -113,8 +113,10 @@ class DQN(object):
 
     with tf.name_scope('output'):
       w = tf.get_variable('ow', shape=[512, self.config.action_size],
+        trainable=trainable,
         initializer=tf.variance_scaling_initializer())
       b = tf.get_variable('ob', shape=[self.config.action_size],
+        trainable=trainable,
         initializer=tf.zeros_initializer())
       outputs = tf.add(tf.matmul(fc, w), b, name='q_values')
     return outputs
