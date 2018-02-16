@@ -91,30 +91,31 @@ class DQN(object):
       for i in range(4):
         tf.summary.image('input_images_%d' % i, images[i])
 
+    initializer = tf.truncated_normal_initializer(0.0, 0.02)
     with tf.name_scope('conv1'):
       conv = tf.contrib.layers.conv2d(inputs, 32, stride=4, kernel_size=8,
         trainable=trainable, padding='VALID',
-        weights_initializer=tf.variance_scaling_initializer())
+        weights_initializer=initializer)
 
     with tf.name_scope('conv2'):
       conv = tf.contrib.layers.conv2d(conv, 64, stride=2, kernel_size=4,
         trainable=trainable, padding='VALID',
-        weights_initializer=tf.variance_scaling_initializer())
+        weights_initializer=initializer)
 
     with tf.name_scope('conv3'):
       conv = tf.contrib.layers.conv2d(conv, 64, stride=1, kernel_size=3,
         trainable=trainable, padding='VALID',
-        weights_initializer=tf.variance_scaling_initializer())
+        weights_initializer=initializer)
 
     with tf.name_scope('fully_connected'):
       fc = tf.contrib.layers.fully_connected(
         tf.contrib.layers.flatten(conv), 512, trainable=trainable,
-        weights_initializer=tf.variance_scaling_initializer())
+        weights_initializer=initializer)
 
     with tf.name_scope('output'):
       w = tf.get_variable('ow', shape=[512, self.config.action_size],
         trainable=trainable,
-        initializer=tf.variance_scaling_initializer())
+        initializer=initializer)
       b = tf.get_variable('ob', shape=[self.config.action_size],
         trainable=trainable,
         initializer=tf.zeros_initializer())
