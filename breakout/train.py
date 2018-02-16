@@ -41,7 +41,7 @@ tf.app.flags.DEFINE_float('eps', 0.01, 'eps for avoiding zero for RMSProp')
 tf.app.flags.DEFINE_integer('batch_size', 32, 'batch size to train')
 tf.app.flags.DEFINE_integer('image_width', 84, 'input image width')
 tf.app.flags.DEFINE_integer('image_height', 84, 'input image height')
-tf.app.flags.DEFINE_bool('use_huber', False, 'use huber loss')
+tf.app.flags.DEFINE_bool('use_huber', True, 'use huber loss')
 tf.app.flags.DEFINE_integer('skip', 4, 'skip frame')
 tf.app.flags.DEFINE_integer('history_length', 4, 'history length')
 
