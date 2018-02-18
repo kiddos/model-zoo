@@ -13,9 +13,9 @@ class ReplayBuffer(object):
     self._state = np.zeros(
       shape=[replay_buffer_size, image_height, image_width],
       dtype=np.uint8)
-    self._action = np.zeros(shape=[replay_buffer_size], dtype=np.int16)
-    self._reward = np.zeros(shape=[replay_buffer_size], dtype=np.int16)
-    self._done = np.zeros(shape=[replay_buffer_size], dtype=np.bool)
+    self._action = np.zeros(shape=[replay_buffer_size - 1], dtype=np.int16)
+    self._reward = np.zeros(shape=[replay_buffer_size - 1], dtype=np.int16)
+    self._done = np.zeros(shape=[replay_buffer_size - 1], dtype=np.bool)
     self._current_size = 0
     self._current_index = 0
     self.padd()
@@ -42,7 +42,7 @@ class ReplayBuffer(object):
     self._reward[self._current_index] = np.sign(reward)
     self._done[self._current_index] = done
     self._current_index = (self._current_index + 1) % self.size
-    self._current_size = min(self._current_size + 1, self.size)
+    self._current_size = min(self._current_size + 1, self.size - 1)
 
   @property
   def current_size(self):
