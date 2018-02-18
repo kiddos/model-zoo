@@ -180,6 +180,8 @@ def run_episode(env):
     sess.run(tf.global_variables_initializer())
     trainer.update_target(sess)
 
+    total_rewards = deque(maxlen=100)
+
     max_total_reward = 0
     epoch = 0
     actions = [0 for _ in range(env.action_size)]
@@ -211,6 +213,8 @@ def run_episode(env):
         if FLAGS.render == 'True':
           env.render()
         if done:
+          total_rewards.append(total_reward)
+
           if total_reward > max_total_reward:
             max_total_reward = total_reward
 
@@ -225,6 +229,8 @@ def run_episode(env):
             logger.info('%d. steps: %d, eps: %f, total: %f, max R: %f',
               episode, step, epsilon, total_reward, max_total_reward)
             logger.info('%d. average Q: %f, loss: %f', epoch, ave_q, loss)
+            logger.info('ave: %f, max: %f',
+                sum(total_rewards) / len(total_rewards), max(total_rewards))
             logger.info('actions: %s', str(actions))
             actions = [0 for _ in range(env.action_size)]
 
