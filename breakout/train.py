@@ -147,8 +147,10 @@ def epsilon_greedy(trainer, sess, state, epsilon):
 
 
 def decay_epsilon(epoch, to):
-  factor = to / -np.log(FLAGS.min_epsilon)
-  epsilon = np.exp(-epoch / factor)
+  #  factor = to / -np.log(FLAGS.min_epsilon)
+  #  epsilon = np.exp(-epoch / factor)
+  #  if epsilon < FLAGS.min_epsilon: epsilon = FLAGS.min_epsilon
+  epsilon = 1.0 - (1.0 - FLAGS.min_epsilon) * epoch / to
   if epsilon < FLAGS.min_epsilon: epsilon = FLAGS.min_epsilon
   return epsilon
 
