@@ -6,7 +6,8 @@ import random
 
 
 class HumbackWhaleModel(object):
-  def __init__(self, image_width, image_height, num_classes, learning_rate):
+  def __init__(self, image_width, image_height, num_classes, learning_rate,
+      lambda_reg):
     self.image_width, self.image_height = image_width, image_height
     self.num_classes = num_classes
     self._setup_inputs()
@@ -14,11 +15,18 @@ class HumbackWhaleModel(object):
     with tf.variable_scope('inference'):
       self.logits, self.output = self.inference(self.input_images)
 
+    var = tf.trainable_variables()
+    reg = 0
+    for v in var:
+      if len(v.get_shape().as_list()) > 1:
+        reg += tf.reduce_sum(tf.square(v))
+
     with tf.name_scope('loss'):
       labels = tf.one_hot(self.label, num_classes, name='label_vec')
       self.loss = tf.reduce_mean(
         tf.nn.softmax_cross_entropy_with_logits(
-          logits=self.logits, labels=labels), name='loss')
+          logits=self.logits, labels=labels))
+      self.loss = tf.add(self.loss, reg * lambda_reg, name='loss')
       tf.summary.scalar('loss', self.loss)
 
     with tf.name_scope('optimizer'):
@@ -119,7 +127,7 @@ class HumbackWhaleModel(object):
 
 def main():
   image_size = 64
-  model = HumbackWhaleModel(image_size, image_size, 4251, 1e-3)
+  model = HumbackWhaleModel(image_size, image_size, 4251, 1e-3, 1e-4)
 
   if os.path.isdir('train'):
     images = os.listdir('train')
