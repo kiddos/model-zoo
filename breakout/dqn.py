@@ -5,7 +5,7 @@ import numpy as np
 class DQNConfig(object):
   learning_rate = 0.00025
   gamma = 0.99
-  decay = 0.95
+  decay = 0.90
   momentum = 0.95
   eps = 0.01
   input_width = 84
@@ -62,11 +62,8 @@ class DQN(object):
       self.learning_rate = tf.Variable(config.learning_rate,
         trainable=False, name='learning_rate')
       optimizer = tf.train.RMSPropOptimizer(self.learning_rate,
-        config.decay, config.momentum, config.eps)
+        momentum=config.momentum, epsilon=config.eps)
       self.train_ops = optimizer.minimize(self.loss)
-      #  grads = optimizer.compute_gradients(self.loss)
-      #  grads = [(tf.clip_by_value(g, -1.0, 1.0), v) for g, v in grads]
-      #  self.train_ops = optimizer.apply_gradients(grads)
 
       tf.summary.scalar('learning_rate', self.learning_rate)
 
@@ -91,7 +88,7 @@ class DQN(object):
       for i in range(4):
         tf.summary.image('input_images_%d' % i, images[i])
 
-    initializer = tf.truncated_normal_initializer(0.0, 0.02)
+    initializer = tf.variance_scaling_initializer()
     with tf.name_scope('conv1'):
       conv = tf.contrib.layers.conv2d(inputs, 32, stride=4, kernel_size=8,
         trainable=trainable, padding='VALID',
@@ -132,9 +129,20 @@ def main():
   with tf.Session(config=config) as sess:
     sess.run(tf.global_variables_initializer())
 
+    state = np.random.uniform(0, 255, [1, 84, 84, 4])
+    print(state.shape)
     q, nq = sess.run([dqn.q_values, dqn.next_q_values], feed_dict={
-      dqn.state: np.random.uniform(0, 255, [1, 84, 84, 4]),
-      dqn.next_state: np.random.uniform(0, 255, [1, 84, 84, 4]),
+      dqn.state: state,
+      dqn.next_state: state,
+    })
+    print(q)
+    print(nq)
+    sess.run(dqn.copy_ops)
+
+    state = np.random.uniform(0, 255, [1, 84, 84, 4])
+    q, nq = sess.run([dqn.q_values, dqn.next_q_values], feed_dict={
+      dqn.state: state,
+      dqn.next_state: state,
     })
     print(q)
     print(nq)
