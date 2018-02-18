@@ -195,7 +195,8 @@ def run_episode(env):
         if epoch % FLAGS.update_frequency == 0:
           trainer.update_target(sess)
 
-        action = epsilon_greedy(trainer, sess, state, epsilon)
+        action = epsilon_greedy(trainer, sess,
+            trainer.replay_buffer.last_state(), epsilon)
         actions[action] += 1
         next_state, reward, done, lives = env.step(action)
         trainer.replay_buffer.add(next_state, action, reward, done)
