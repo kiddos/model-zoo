@@ -101,6 +101,32 @@ class HistoryFrameEnvironment(object):
     self.env.render()
 
 
+class SimpleEnvironment(object):
+  def __init__(self, name):
+    self.env = gym.make(name)
+    self.action_size = self.env.action_space.n
+    self.lives = 0
+
+  def reset(self):
+    if self.lives == 0:
+      state = self.env.reset()
+    else:
+      noop = 0
+      state, _, _, info = self.env.step(noop)
+      self.lives = info['ale.lives']
+    return state
+
+  def step(self, action):
+    state, reward, done, info = self.env.step(action)
+    if info['ale.lives'] < self.lives:
+      done = True
+      reward = -1
+    self.lives = info['ale.lives']
+    return state, reward, done, info['ale.lives']
+
+  def render(self):
+    self.env.render()
+
 
 def main():
   #  env = SkipFrameEnvironment('BreakoutNoFrameskip-v4', 4, 84, 84)
