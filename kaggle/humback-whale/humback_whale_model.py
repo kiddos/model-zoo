@@ -64,7 +64,7 @@ class HumbackWhaleModel(object):
 
   def inference(self, inputs):
     with tf.name_scope('conv1'):
-      conv = tf.contrib.layers.conv2d(inputs, 64, 3, 1,
+      conv = tf.contrib.layers.conv2d(inputs, 128, 3, 1,
         weights_initializer=tf.random_normal_initializer(stddev=0.01))
 
     with tf.name_scope('pool1'):
@@ -80,7 +80,7 @@ class HumbackWhaleModel(object):
       drop = tf.nn.dropout(pool, self.keep_prob)
 
     with tf.name_scope('conv3'):
-      conv = self.stack_conv(drop, 256, 3, 4)
+      conv = self.stack_conv(drop, 256, 3, 2)
 
     with tf.name_scope('pool3'):
       pool = tf.contrib.layers.max_pool2d(conv, 2)
@@ -89,8 +89,8 @@ class HumbackWhaleModel(object):
       drop = tf.nn.dropout(pool, self.keep_prob)
 
     with tf.name_scope('conv4'):
-      conv = self.stack_conv(drop, 512, 3, 6)
-      conv = tf.contrib.layers.conv2d(conv, 64, 3, 1,
+      conv = self.stack_conv(drop, 512, 3, 50)
+      conv = tf.contrib.layers.conv2d(conv, 256, 3, 1,
         weights_initializer=tf.variance_scaling_initializer())
 
     with tf.name_scope('drop4'):
@@ -98,7 +98,7 @@ class HumbackWhaleModel(object):
 
     with tf.name_scope('fully_connected'):
       flatten = tf.contrib.layers.flatten(drop)
-      fc = tf.contrib.layers.fully_connected(flatten, 512,
+      fc = tf.contrib.layers.fully_connected(flatten, 1024,
         weights_initializer=tf.variance_scaling_initializer())
 
     with tf.name_scope('outputs'):
