@@ -41,7 +41,7 @@ class ReplayBuffer(object):
     self._action[self._current_index] = action
     self._reward[self._current_index] = np.sign(reward)
     self._done[self._current_index] = done
-    self._current_index = (self._current_index + 1) % self.size
+    self._current_index = (self._current_index + 1) % (self.size - 1)
     self._current_size = min(self._current_size + 1, self.size - 1)
 
   @property
