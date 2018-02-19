@@ -2,22 +2,20 @@ import unittest
 import numpy as np
 import random
 import gym
+from collections import deque
 from PIL import Image
 
 
 class ReplayBuffer(object):
   def __init__(self, replay_buffer_size, image_width, image_height,
       history_size):
+    self.w, self.h = image_width, image_height
     self.size = replay_buffer_size
     self.history_size = history_size
-    self._state = np.zeros(
-      shape=[replay_buffer_size, image_height, image_width],
-      dtype=np.uint8)
-    self._action = np.zeros(shape=[replay_buffer_size - 1], dtype=np.int16)
-    self._reward = np.zeros(shape=[replay_buffer_size - 1], dtype=np.int16)
-    self._done = np.zeros(shape=[replay_buffer_size - 1], dtype=np.bool)
-    self._current_size = 0
-    self._current_index = 0
+    self._state = deque(maxlen=replay_buffer_size)
+    self._action = deque(maxlen=replay_buffer_size - 1)
+    self._reward = deque(maxlen=replay_buffer_size - 1)
+    self._done = deque(maxlen=replay_buffer_size - 1)
     self.padd()
 
   def padd(self):
@@ -27,30 +25,36 @@ class ReplayBuffer(object):
       self.add(empty, no_op, 0, False)
 
   def process_image(self, state):
-    w, h = self._state.shape[1:3]
     image = Image.fromarray(state).crop([8, 32, 152, 210])
-    image = image.resize([w, h], Image.NEAREST).convert('L')
+    image = image.resize([self.w, self.h], Image.NEAREST).convert('L')
     img = np.array(image, dtype=np.uint8)
     return img
 
   def init_state(self, state):
-    self._state[self._current_index, ...] = self.process_image(state)
+    self._state.append(self.process_image(state))
 
   def add(self, next_state, action, reward, done):
-    self._state[self._current_index + 1, ...] = self.process_image(next_state)
-    self._action[self._current_index] = action
-    self._reward[self._current_index] = np.sign(reward)
-    self._done[self._current_index] = done
-    self._current_index = (self._current_index + 1) % (self.size - 1)
-    self._current_size = min(self._current_size + 1, self.size - 1)
+    self._state.append(self.process_image(next_state))
+    self._action.append(np.array(action, dtype=np.int16))
+    self._reward.append(np.sign(np.array(reward, dtype=np.int16)))
+    self._done.append(done)
 
   @property
   def current_size(self):
     return self._current_size
 
   def get_state(self, index):
-    return np.transpose(
-        self._state[(index - self.history_size + 1):(index + 1), ...], (1, 2, 0))
+    state = []
+    for i in range(index - self.history_size + 1, index + 1):
+      state.append(self._state[i])
+    state = np.stack(state, axis=0)
+    return np.transpose(state, (1, 2, 0))
+
+  def terminal(self, index):
+    term = False
+    for i in range(index - self.history_size, index):
+      term |= self._done[i]
+    return term
 
   def sample(self, batch_size):
     states = []
@@ -58,10 +62,11 @@ class ReplayBuffer(object):
     next_states = []
     rewards = []
     done = []
+    current_size = len(self._state)
     for b in range(batch_size):
       while True:
-        index = random.randint(self.history_size, self._current_size - 1)
-        if not self._done[(index - self.history_size):index].any():
+        index = random.randint(self.history_size, current_size - 2)
+        if not self.terminal(index):
           states.append(self.get_state(index - 1))
           actions.append(self._action[index])
           next_states.append(self.get_state(index))
@@ -76,12 +81,12 @@ class ReplayBuffer(object):
     return states, actions, next_states, rewards, done
 
   def last_state(self):
-    return self.get_state(self._current_index - 1)
+    return self.get_state(-2)
 
 
 class TestReplayBuffer(unittest.TestCase):
   def setUp(self):
-    self.replay_buffer = ReplayBuffer(1000000, 84, 84, 4)
+    self.replay_buffer = ReplayBuffer(1000, 84, 84, 4)
     self.env = gym.make('Breakout-v0')
 
   def test_add_states(self):
@@ -122,6 +127,9 @@ class TestReplayBuffer(unittest.TestCase):
 
       s = self.replay_buffer.process_image(state)
       last_state = self.replay_buffer.last_state()
+      self.assertEqual(s.shape, (84, 84, 4))
+      self.assertEqual(last_state.shape, (84, 84, 4))
+
       eq = np.all(last_state[:, :, -1] == s)
       self.assertTrue(eq)
       state = next_state
@@ -130,6 +138,10 @@ class TestReplayBuffer(unittest.TestCase):
   def test_multiple_sample(self):
     for _ in range(20):
       self.test_sample()
+
+  def test_multiple_last_state(self):
+    for _ in range(20):
+      self.test_last_state()
 
 
 def main():
