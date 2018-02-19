@@ -38,6 +38,15 @@ logger = logging.getLogger('train')
 logger.setLevel(logging.INFO)
 
 
+def prepare_folder():
+  index = 0
+  folder = os.path.join('/tmp', 'humback-whale_%d' % (index))
+  while os.path.isdir(folder):
+    index += 1
+    folder = os.path.join('/tmp', 'humback-whale_%d' % (index))
+  return folder
+
+
 def train():
   data = HumbackWhaleData(FLAGS.data, FLAGS.image_width, FLAGS.image_height)
   data.load()
@@ -48,7 +57,8 @@ def train():
 
   if FLAGS.saving:
     saver = tf.train.Saver()
-    summary_writer = tf.summary.FileWriter('/tmp/humback-whale/summary',
+    folder = prepare_folder()
+    summary_writer = tf.summary.FileWriter(os.path.join(folder, 'summary'),
       tf.get_default_graph())
 
   config = tf.ConfigProto()
@@ -83,7 +93,7 @@ def train():
       })
 
       if FLAGS.saving and epoch % FLAGS.save_epoches == 0 and epoch != 0:
-        saver.save(sess, '/tmp/humback-whale/model', global_step=epoch)
+        saver.save(sess, os.path.join(folder, 'model'), global_step=epoch)
 
       if FLAGS.saving and epoch % FLAGS.summary_epoches == 0:
         valid_images, valid_labels = data.get_batch(FLAGS.batch_size)
