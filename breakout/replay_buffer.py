@@ -41,7 +41,7 @@ class ReplayBuffer(object):
 
   @property
   def current_size(self):
-    return self._current_size
+    return len(self._state)
 
   def get_state(self, index):
     state = []
