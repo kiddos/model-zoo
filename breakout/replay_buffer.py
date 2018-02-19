@@ -62,10 +62,10 @@ class ReplayBuffer(object):
     next_states = []
     rewards = []
     done = []
-    current_size = len(self._state)
+    current_size = len(self._done)
     for b in range(batch_size):
       while True:
-        index = random.randint(self.history_size, current_size - 2)
+        index = random.randint(self.history_size, current_size - 1)
         if not self.terminal(index):
           states.append(self.get_state(index - 1))
           actions.append(self._action[index])
@@ -86,7 +86,7 @@ class ReplayBuffer(object):
 
 class TestReplayBuffer(unittest.TestCase):
   def setUp(self):
-    self.replay_buffer = ReplayBuffer(1000, 84, 84, 4)
+    self.replay_buffer = ReplayBuffer(10, 84, 84, 4)
     self.env = gym.make('Breakout-v0')
 
   def test_add_states(self):
@@ -127,7 +127,7 @@ class TestReplayBuffer(unittest.TestCase):
 
       s = self.replay_buffer.process_image(state)
       last_state = self.replay_buffer.last_state()
-      self.assertEqual(s.shape, (84, 84, 4))
+      self.assertEqual(s.shape, (84, 84))
       self.assertEqual(last_state.shape, (84, 84, 4))
 
       eq = np.all(last_state[:, :, -1] == s)
