@@ -6,13 +6,11 @@ import logging
 import threading
 import signal
 import os
-import gym
 from PIL import Image
 from collections import deque
 from argparse import ArgumentParser
 
-from environment import SimpleEnvironment
-from replay_buffer import ReplayBuffer
+from environment import HistoryFrameEnvironment
 from dqn import DQN, DQNConfig
 
 
@@ -60,8 +58,7 @@ logger.setLevel(logging.INFO)
 
 class Trainer(object):
   def __init__(self):
-    self.replay_buffer = ReplayBuffer(FLAGS.replay_buffer_size,
-        FLAGS.image_width, FLAGS.image_height, FLAGS.history_length)
+    self.replay_buffer = deque(maxlen=FLAGS.replay_buffer_size)
 
     config = DQNConfig()
     config.learning_rate = FLAGS.learning_rate
@@ -74,19 +71,31 @@ class Trainer(object):
     config.skip = FLAGS.skip
     self.dqn = DQN(config, FLAGS.use_huber)
 
+  def get_batch(self, batch_size):
+    batch = random.sample(self.replay_buffer, batch_size)
+    state_batch = np.array([b[0] for b in batch])
+    action_batch = np.array([b[1] for b in batch])
+    next_state_batch = np.array([b[2] for b in batch])
+    reward_batch = np.array([b[3] for b in batch])
+    done_batch = np.array([b[4] for b in batch])
+    return state_batch, action_batch, next_state_batch, reward_batch, done_batch
+
   def train(self, sess):
-    states, actions, next_states, rewards, done = \
-        self.replay_buffer.sample(FLAGS.batch_size)
+    state_batch, action_batch, next_state_batch, \
+      reward_batch, done_batch = self.get_batch(FLAGS.batch_size)
     sess.run(self.dqn.train_ops, feed_dict={
-      self.dqn.state: states,
-      self.dqn.next_state: next_states,
-      self.dqn.action: actions,
-      self.dqn.reward: rewards,
-      self.dqn.done: done,
+      self.dqn.state: state_batch,
+      self.dqn.action: action_batch,
+      self.dqn.next_state: next_state_batch,
+      self.dqn.reward: reward_batch,
+      self.dqn.done: done_batch,
     })
 
   def update_target(self, sess):
     sess.run(self.dqn.copy_ops)
+
+  def add_step(self, step):
+    self.replay_buffer.append(step)
 
   def predict_action(self, sess, state):
     return sess.run(self.dqn.q_values, feed_dict={
@@ -94,35 +103,36 @@ class Trainer(object):
     })[0]
 
   def compute_loss(self, sess):
-    states, actions, next_states, rewards, done = \
-        self.replay_buffer.sample(FLAGS.batch_size)
+    state_batch, action_batch, next_state_batch, \
+        reward_batch, done_batch = self.get_batch(FLAGS.batch_size)
     return sess.run(self.dqn.loss, feed_dict={
-      self.dqn.state: states,
-      self.dqn.next_state: next_states,
-      self.dqn.action: actions,
-      self.dqn.reward: rewards,
-      self.dqn.done: done,
+      self.dqn.state: state_batch,
+      self.dqn.next_state: next_state_batch,
+      self.dqn.action: action_batch,
+      self.dqn.reward: reward_batch,
+      self.dqn.done: done_batch,
     })
 
   def ave_q_values(self, sess):
-    states, _, _, _, _ = self.replay_buffer.sample(FLAGS.batch_size)
-    return np.max(sess.run(self.dqn.q_values, feed_dict={
-      self.dqn.state: states,
+    state_batch, action_batch, next_state_batch, \
+        reward_batch, done_batch = self.get_batch(FLAGS.batch_size)
+    return np.mean(sess.run(self.dqn.q_values, feed_dict={
+      self.dqn.state: state_batch,
     }))
 
   def get_summary(self, sess):
-    states, actions, next_states, rewards, done = \
-        self.replay_buffer.sample(FLAGS.batch_size)
+    state_batch, action_batch, next_state_batch, \
+        reward_batch, done_batch = self.get_batch(FLAGS.batch_size)
     return sess.run(self.dqn.summary, feed_dict={
-      self.dqn.state: states,
-      self.dqn.next_state: next_states,
-      self.dqn.action: actions,
-      self.dqn.reward: rewards,
-      self.dqn.done: done,
+      self.dqn.state: state_batch,
+      self.dqn.next_state: next_state_batch,
+      self.dqn.action: action_batch,
+      self.dqn.reward: reward_batch,
+      self.dqn.done: done_batch,
     })
 
   def ready(self):
-    return self.replay_buffer.current_size >= FLAGS.init_replay_buffer_size
+    return len(self.replay_buffer) >= FLAGS.init_replay_buffer_size
 
 
 def epsilon_greedy(trainer, sess, state, epsilon):
@@ -158,14 +168,13 @@ def run_episode(env):
   logger.info('filling replay buffer...')
   while not trainer.ready():
     state = env.reset()
-    trainer.replay_buffer.init_state(state)
     while True:
       action = random.randint(0, 3)
       next_state, reward, done, lives = env.step(action)
-      trainer.replay_buffer.add(next_state, action, reward, done)
+      trainer.add_step([state, action, next_state, reward, done])
       state = next_state
       if done: break
-  logger.info('replay buffer size: %d', trainer.replay_buffer.current_size)
+  logger.info('replay buffer size: %d', len(trainer.replay_buffer))
 
   if FLAGS.saving:
     folder = prepare_folder()
@@ -181,13 +190,11 @@ def run_episode(env):
     trainer.update_target(sess)
 
     total_rewards = deque(maxlen=100)
-
     max_total_reward = 0
     epoch = 0
     actions = [0 for _ in range(env.action_size)]
     for episode in range(FLAGS.max_episodes + 1):
       state = env.reset()
-      trainer.replay_buffer.init_state(state)
 
       epsilon = decay_epsilon(epoch, FLAGS.decay_to_epoch)
 
@@ -197,11 +204,10 @@ def run_episode(env):
         if epoch % FLAGS.update_frequency == 0:
           trainer.update_target(sess)
 
-        action = epsilon_greedy(trainer, sess,
-            trainer.replay_buffer.last_state(), epsilon)
+        action = epsilon_greedy(trainer, sess, state, epsilon)
         actions[action] += 1
         next_state, reward, done, lives = env.step(action)
-        trainer.replay_buffer.add(next_state, action, reward, done)
+        trainer.add_step([state, action, next_state, reward, done])
 
         step += 1
         total_reward += reward
@@ -214,7 +220,6 @@ def run_episode(env):
           env.render()
         if done:
           total_rewards.append(total_reward)
-
           if total_reward > max_total_reward:
             max_total_reward = total_reward
 
@@ -228,9 +233,10 @@ def run_episode(env):
 
             logger.info('%d. steps: %d, eps: %f, total: %f, max R: %f',
               episode, step, epsilon, total_reward, max_total_reward)
-            logger.info('%d. average Q: %f, loss: %f', epoch, ave_q, loss)
-            logger.info('ave: %f, max: %f',
-                sum(total_rewards) / len(total_rewards), max(total_rewards))
+            logger.info('%d. ave Q: %f, loss: %f',
+              epoch, ave_q, loss)
+            logger.info('average reward: %f, max reward: %f',
+              sum(total_rewards) / len(total_rewards), max(total_rewards))
             logger.info('actions: %s', str(actions))
             actions = [0 for _ in range(env.action_size)]
 
@@ -246,9 +252,8 @@ def run_episode(env):
 
 
 def main(_):
-  #  env = HistoryFrameEnvironment(FLAGS.environment,
-  #    FLAGS.history_length, FLAGS.image_width, FLAGS.image_height)
-  env = SimpleEnvironment(FLAGS.environment)
+  env = HistoryFrameEnvironment(FLAGS.environment,
+    FLAGS.history_length, FLAGS.image_width, FLAGS.image_height)
   run_episode(env)
 
 
