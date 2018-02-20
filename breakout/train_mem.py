@@ -106,7 +106,7 @@ class Trainer(object):
 
   def ave_q_values(self, sess):
     states, _, _, _, _ = self.replay_buffer.sample(FLAGS.batch_size)
-    return np.max(sess.run(self.dqn.q_values, feed_dict={
+    return np.mean(sess.run(self.dqn.q_values, feed_dict={
       self.dqn.state: states,
     }))
 
@@ -158,7 +158,7 @@ def run_episode(env):
   logger.info('filling replay buffer...')
   while not trainer.ready():
     state = env.reset()
-    trainer.replay_buffer.init_state(state)
+    trainer.replay_buffer.add(state, 0, 0, False)
     while True:
       action = random.randint(0, 3)
       next_state, reward, done, lives = env.step(action)
@@ -187,7 +187,7 @@ def run_episode(env):
     actions = [0 for _ in range(env.action_size)]
     for episode in range(FLAGS.max_episodes + 1):
       state = env.reset()
-      trainer.replay_buffer.init_state(state)
+      trainer.replay_buffer.add(state, 0, 0, False)
 
       epsilon = decay_epsilon(epoch, FLAGS.decay_to_epoch)
 

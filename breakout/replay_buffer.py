@@ -34,12 +34,6 @@ class ReplayBuffer(object):
     img = np.array(image, dtype=np.uint8)
     return img
 
-  def init_state(self, state):
-    state = self.process_image(state)
-    self.history.append(state)
-
-    self._state[self._current_index, ...] = state
-
   def add(self, next_state, action, reward, done):
     next_state = self.process_image(next_state)
     self.history.append(next_state)
@@ -67,7 +61,7 @@ class ReplayBuffer(object):
     return np.transpose(state, (1, 2, 0))
 
   def terminal(self, index):
-    return self._done[(index - self.history_size):index].any()
+    return self._done[(index - self.history_size + 1):(index + 1)].any()
 
   def sample(self, batch_size):
     states = []
@@ -76,9 +70,12 @@ class ReplayBuffer(object):
     rewards = []
     done = []
     current_size = len(self._done)
+    min_index = self.history_size
+    if self._current_index < self.history_size:
+      min_index *= 2
     for b in range(batch_size):
       while True:
-        index = random.randint(self.history_size, current_size - 1)
+        index = random.randint(min_index, current_size - 1)
         if not self.terminal(index):
           states.append(self.get_state(index))
           actions.append(self._action[index])
