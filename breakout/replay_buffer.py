@@ -12,10 +12,14 @@ class ReplayBuffer(object):
     self.w, self.h = image_width, image_height
     self.size = replay_buffer_size
     self.history_size = history_size
-    self._state = deque(maxlen=replay_buffer_size)
-    self._action = deque(maxlen=replay_buffer_size - 1)
-    self._reward = deque(maxlen=replay_buffer_size - 1)
-    self._done = deque(maxlen=replay_buffer_size - 1)
+    self.history = deque(maxlen=history_size)
+    self._state = np.zeros(shape=[replay_buffer_size, image_height,
+      image_width], dtype=np.uint8)
+    self._action = np.zeros(shape=[replay_buffer_size-1], dtype=np.int16)
+    self._reward = np.zeros(shape=[replay_buffer_size-1], dtype=np.int16)
+    self._done = np.zeros(shape=[replay_buffer_size-1], dtype=np.bool)
+    self._current_index = 0
+    self._current_size = 0
     self.padd()
 
   def padd(self):
@@ -31,23 +35,35 @@ class ReplayBuffer(object):
     return img
 
   def init_state(self, state):
-    self._state.append(self.process_image(state))
+    state = self.process_image(state)
+    self.history.append(state)
+
+    self._state[self._current_index, ...] = state
 
   def add(self, next_state, action, reward, done):
-    self._state.append(self.process_image(next_state))
-    self._action.append(np.array(action, dtype=np.int16))
-    self._reward.append(np.sign(np.array(reward, dtype=np.int16)))
-    self._done.append(done)
+    next_state = self.process_image(next_state)
+    self.history.append(next_state)
+
+    self._state[self._current_index + 1, ...] = next_state
+    self._action[self._current_index] = np.array(action, np.int16)
+    self._reward[self._current_index] = np.sign(reward).astype(np.int16)
+    self._done[self._current_index] = np.array(done, np.bool)
+
+    self._current_index = (self._current_index + 1) % (self.size - 1)
+    self._current_size = min(self._current_size + 1, self.size)
 
   @property
   def current_size(self):
     return len(self._state)
 
   def get_state(self, index):
-    state = []
-    for i in range(index - self.history_size + 1, index + 1):
-      state.append(self._state[i])
-    state = np.stack(state, axis=0)
+    index_from = index - self.history_size + 1
+    index_to = index + 1
+    if index_from < 0:
+      state = [self._state[index_from:0], self._state[0:index_to]]
+      state = np.stack(state, axis=0)
+    else:
+      state = self._state[index_from:index_to, ...]
     return np.transpose(state, (1, 2, 0))
 
   def terminal(self, index):
@@ -81,7 +97,8 @@ class ReplayBuffer(object):
     return states, actions, next_states, rewards, done
 
   def last_state(self):
-    return self.get_state(-2)
+    last_state = np.array(self.history, np.uint8)
+    return np.transpose(last_state, (1, 2, 0))
 
 
 class TestReplayBuffer(unittest.TestCase):
@@ -123,7 +140,6 @@ class TestReplayBuffer(unittest.TestCase):
     while True:
       action = random.randint(0, 3)
       next_state, reward, done, info = self.env.step(action)
-      self.replay_buffer.add(next_state, action, reward, done)
 
       s = self.replay_buffer.process_image(state)
       last_state = self.replay_buffer.last_state()
@@ -132,6 +148,8 @@ class TestReplayBuffer(unittest.TestCase):
 
       eq = np.all(last_state[:, :, -1] == s)
       self.assertTrue(eq)
+
+      self.replay_buffer.add(next_state, action, reward, done)
       state = next_state
       if done: break
 
