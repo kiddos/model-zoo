@@ -171,7 +171,8 @@ def run_episode(env):
     while True:
       action = random.randint(0, 3)
       next_state, reward, done, lives = env.step(action)
-      trainer.add_step([state, action, next_state, reward, done])
+      trainer.add_step([state, np.array(action, np.int16),
+        next_state, np.sign(reward), done])
       state = next_state
       if done: break
   logger.info('replay buffer size: %d', len(trainer.replay_buffer))
@@ -207,7 +208,8 @@ def run_episode(env):
         action = epsilon_greedy(trainer, sess, state, epsilon)
         actions[action] += 1
         next_state, reward, done, lives = env.step(action)
-        trainer.add_step([state, action, next_state, reward, done])
+        trainer.add_step([state, np.array(action, np.int16),
+          next_state, np.sign(reward), done])
 
         step += 1
         total_reward += reward
