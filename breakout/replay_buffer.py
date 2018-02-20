@@ -57,8 +57,8 @@ class ReplayBuffer(object):
     return len(self._state)
 
   def get_state(self, index):
-    index_from = index - self.history_size + 1
-    index_to = index + 1
+    index_from = index - self.history_size
+    index_to = index
     if index_from < 0:
       state = [self._state[index_from:0], self._state[0:index_to]]
       state = np.stack(state, axis=0)
@@ -67,10 +67,7 @@ class ReplayBuffer(object):
     return np.transpose(state, (1, 2, 0))
 
   def terminal(self, index):
-    term = False
-    for i in range(index - self.history_size, index):
-      term |= self._done[i]
-    return term
+    return self._done[(index - self.history_size):index].any()
 
   def sample(self, batch_size):
     states = []
@@ -83,9 +80,9 @@ class ReplayBuffer(object):
       while True:
         index = random.randint(self.history_size, current_size - 1)
         if not self.terminal(index):
-          states.append(self.get_state(index - 1))
+          states.append(self.get_state(index))
           actions.append(self._action[index])
-          next_states.append(self.get_state(index))
+          next_states.append(self.get_state(index + 1))
           rewards.append(self._reward[index])
           done.append(self._done[index])
           break
