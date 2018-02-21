@@ -8,9 +8,11 @@ import random
 
 
 class HumbackWhaleData(object):
-  def __init__(self, dbname, image_width, image_height, random_padding):
+  def __init__(self, dbname, image_width, image_height,
+      random_padding, random_rotation):
     self.image_width, self.image_height = image_width, image_height
     self.random_padding = random_padding
+    self.random_rotation = random_rotation
 
     if os.path.isfile(dbname):
       self.connection = sqlite3.connect(dbname)
@@ -40,6 +42,17 @@ class HumbackWhaleData(object):
 
   def random_preprocess(self, image_data):
     image = Image.fromarray(image_data)
+
+    # flip
+    flip_prob = random.random()
+    if flip_prob < 0.25:
+      image = image.transpose(Image.FLIP_TOP_BOTTOM)
+    elif flip_prob < 0.5:
+      image = image.transpose(Image.FLIP_LEFT_RIGHT)
+
+    random_angle = (random.random() * 2 - 1) * self.random_rotation
+    image = image.rotate(random_angle, Image.NEAREST)
+
     w, h = image.size
     if self.random_padding * 2 < w:
       left = random.randint(0, self.random_padding)
@@ -74,7 +87,7 @@ class HumbackWhaleData(object):
 
 
 def main():
-  data = HumbackWhaleData('./humback-whale.sqlite3', 64, 64, 20)
+  data = HumbackWhaleData('./humback-whale.sqlite3', 64, 64, 20, 45)
   data.load()
   data.load_label_mapping()
 
