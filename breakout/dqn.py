@@ -5,7 +5,7 @@ import numpy as np
 class DQNConfig(object):
   learning_rate = 0.00025
   gamma = 0.99
-  decay = 0.90
+  decay = 0.95
   momentum = 0.95
   eps = 0.01
   input_width = 84
@@ -61,8 +61,11 @@ class DQN(object):
     with tf.name_scope('optimization'):
       self.learning_rate = tf.Variable(config.learning_rate,
         trainable=False, name='learning_rate')
-      optimizer = tf.train.RMSPropOptimizer(self.learning_rate,
-        momentum=config.momentum, epsilon=config.eps)
+      optimizer = tf.train.RMSPropOptimizer(
+        self.learning_rate,
+        decay=config.decay,
+        momentum=config.momentum,
+        epsilon=config.eps)
       self.train_ops = optimizer.minimize(self.loss)
 
       tf.summary.scalar('learning_rate', self.learning_rate)
