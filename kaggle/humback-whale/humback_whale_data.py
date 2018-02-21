@@ -8,8 +8,9 @@ import random
 
 
 class HumbackWhaleData(object):
-  def __init__(self, dbname, image_width, image_height):
+  def __init__(self, dbname, image_width, image_height, random_padding):
     self.image_width, self.image_height = image_width, image_height
+    self.random_padding = random_padding
 
     if os.path.isfile(dbname):
       self.connection = sqlite3.connect(dbname)
@@ -40,12 +41,21 @@ class HumbackWhaleData(object):
   def random_preprocess(self, image_data):
     image = Image.fromarray(image_data)
     w, h = image.size
-    if w > h:
-      random_x = random.randint(0, w - h)
-      cropped = image.crop([random_x, 0, random_x + h, h])
+    if self.random_padding * 2 < w:
+      left = random.randint(0, self.random_padding)
+      right = random.randint(w - self.random_padding, w)
     else:
-      random_y = random.randint(0, h - w)
-      cropped = image.crop([0, random_y, w, random_y + w])
+      left = 0
+      right = w
+
+    if self.random_padding * 2 < h:
+      top = random.randint(0, self.random_padding)
+      bot = random.randint(h - self.random_padding, h)
+    else:
+      top = 0
+      bot = h
+
+    cropped = image.crop([left, top, right, bot])
 
     resized = cropped.resize([self.image_width, self.image_height],
       Image.NEAREST)
@@ -64,7 +74,7 @@ class HumbackWhaleData(object):
 
 
 def main():
-  data = HumbackWhaleData('./humback-whale.sqlite3', 32, 32)
+  data = HumbackWhaleData('./humback-whale.sqlite3', 64, 64, 20)
   data.load()
   data.load_label_mapping()
 
@@ -72,6 +82,9 @@ def main():
   print(data.labels.max())
   print(images.shape)
   print(labels.shape)
+
+  img = Image.fromarray(images[0, :, :, 0])
+  img.save('test.png')
 
 
 if __name__ == '__main__':
