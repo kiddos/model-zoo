@@ -70,13 +70,11 @@ class HistoryFrameEnvironment(object):
     self.lives = 0
     self.history_size = history_size
 
-    for _ in range(self.history_size - 1):
-      self.history.append(
-        np.zeros([self.image_width, self.image_height, 1], dtype=np.uint8))
-
   def reset(self):
     if self.lives == 0:
       state = self.env.reset()
+      for _ in range(self.history_size - 1):
+        self.history.append(state)
     else:
       noop = 0
       state, _, _, info = self.env.step(noop)
