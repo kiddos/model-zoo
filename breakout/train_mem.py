@@ -169,7 +169,7 @@ def run_episode(env):
 
   if FLAGS.saving:
     folder = prepare_folder()
-    saver = tf.train.Saver()
+    saver = tf.train.Saver(max_to_keep=30)
     summary_writer = tf.summary.FileWriter(os.path.join(folder, 'summary'),
       tf.get_default_graph())
 
