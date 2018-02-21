@@ -22,6 +22,7 @@ tf.app.flags.DEFINE_string('data', 'humback-whale.sqlite3', 'sqlite3 data')
 tf.app.flags.DEFINE_integer('image_width', 64, 'input image width')
 tf.app.flags.DEFINE_integer('image_height', 64, 'input image height')
 tf.app.flags.DEFINE_integer('random_padding', 32, 'random padding for image')
+tf.app.flags.DEFINE_integer('random_rotation', 45, 'random rotation for image')
 tf.app.flags.DEFINE_float('learning_rate', 1e-3, 'learning rate to train')
 tf.app.flags.DEFINE_float('lambda_reg', 1e-3, 'regularization')
 tf.app.flags.DEFINE_integer('batch_size', 64, 'batch size')
@@ -50,7 +51,7 @@ def prepare_folder():
 
 def train():
   data = HumbackWhaleData(FLAGS.data, FLAGS.image_width, FLAGS.image_height,
-    FLAGS.random_padding)
+    FLAGS.random_padding, FLAGS.random_rotation)
   data.load()
 
   num_classes = data.labels.max() + 1
