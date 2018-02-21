@@ -60,7 +60,7 @@ def predict():
   config.gpu_options.allow_growth = True
   with tf.Session(graph=graph, config=config) as sess:
     images = sorted(os.listdir(FLAGS.test_images))
-    data = HumbackWhaleData(FLAGS.dbname, input_width, input_height)
+    data = HumbackWhaleData(FLAGS.dbname, input_width, input_height, 0, 0)
     data.load_label_mapping()
 
     with open(FLAGS.output_csv, 'w') as f:
