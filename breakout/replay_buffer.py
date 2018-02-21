@@ -69,13 +69,12 @@ class ReplayBuffer(object):
     next_states = []
     rewards = []
     done = []
-    current_size = len(self._done)
     min_index = self.history_size
     if self._current_index < self.history_size:
       min_index *= 2
     for b in range(batch_size):
       while True:
-        index = random.randint(min_index, current_size - 1)
+        index = random.randint(min_index, self._current_size - 1)
         if not self.terminal(index):
           states.append(self.get_state(index))
           actions.append(self._action[index])
