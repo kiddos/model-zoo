@@ -46,7 +46,7 @@ tf.app.flags.DEFINE_integer('skip', 4, 'skip frame')
 tf.app.flags.DEFINE_integer('history_length', 4, 'history length')
 
 tf.app.flags.DEFINE_integer('display_episode', 1, 'display result per episode')
-tf.app.flags.DEFINE_integer('save_episode', 1000, 'save model per episode')
+tf.app.flags.DEFINE_integer('save_episode', 5000, 'save model per episode')
 tf.app.flags.DEFINE_integer('summary_episode', 10, 'save summary per episode')
 
 
@@ -179,7 +179,7 @@ def run_episode(env):
 
   if FLAGS.saving:
     folder = prepare_folder()
-    saver = tf.train.Saver()
+    saver = tf.train.Saver(max_to_keep=30)
     summary_writer = tf.summary.FileWriter(os.path.join(folder, 'summary'),
       tf.get_default_graph())
 
@@ -241,6 +241,11 @@ def run_episode(env):
               sum(total_rewards) / len(total_rewards), max(total_rewards))
             logger.info('actions: %s', str(actions))
             actions = [0 for _ in range(env.action_size)]
+
+          if FLAGS.saving and \
+              episode % FLAGS.save_episode == 0:
+            saver.save(sess, os.path.join(folder, 'breakout'),
+              global_step=episode)
 
           if FLAGS.saving and \
               episode % FLAGS.summary_episode == 0:
