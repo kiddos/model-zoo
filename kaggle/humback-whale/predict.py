@@ -25,20 +25,9 @@ def load_image(image_path, input_width, input_height):
   if os.path.isfile(image_path):
     image = Image.open(image_path).convert('L')
     w, h = image.size
-    cropped = []
-    if w > h:
-      for i in range(0, w - h + 1, FLAGS.stride):
-        crop = image.crop([i, 0, i + h, h])
-        cropped.append(crop)
-    else:
-      for i in range(0, h - w + 1, FLAGS.stride):
-        crop = image.crop([0, i, w, i + w])
-        cropped.append(crop)
-
-    for i in range(len(cropped)):
-      cropped[i] = cropped[i].resize([input_width, input_height])
-      cropped[i] = np.expand_dims(np.array(cropped[i]), axis=3)
-    return np.array(cropped)
+    image = image.resize([input_width, input_height])
+    image = np.array(image, dtype=np.uint8)
+    return np.reshape(image, [1, input_height, input_width, 1])
   else:
     logger.info('image %s not found', image_path)
 
