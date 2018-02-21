@@ -15,9 +15,9 @@ class ReplayBuffer(object):
     self.history = deque(maxlen=history_size)
     self._state = np.zeros(shape=[replay_buffer_size, image_height,
       image_width], dtype=np.uint8)
-    self._action = np.zeros(shape=[replay_buffer_size-1], dtype=np.int16)
-    self._reward = np.zeros(shape=[replay_buffer_size-1], dtype=np.int16)
-    self._done = np.zeros(shape=[replay_buffer_size-1], dtype=np.bool)
+    self._action = np.zeros(shape=[replay_buffer_size], dtype=np.int16)
+    self._reward = np.zeros(shape=[replay_buffer_size], dtype=np.int16)
+    self._done = np.zeros(shape=[replay_buffer_size], dtype=np.bool)
     self._current_index = 0
     self._current_size = 0
     self.padd()
@@ -38,12 +38,12 @@ class ReplayBuffer(object):
     next_state = self.process_image(next_state)
     self.history.append(next_state)
 
-    self._state[self._current_index + 1, ...] = next_state
+    self._state[self._current_index, ...] = next_state
     self._action[self._current_index] = np.array(action, np.int16)
     self._reward[self._current_index] = np.sign(reward).astype(np.int16)
     self._done[self._current_index] = np.array(done, np.bool)
 
-    self._current_index = (self._current_index + 1) % (self.size - 1)
+    self._current_index = (self._current_index + 1) % self.size
     self._current_size = min(self._current_size + 1, self.size)
 
   @property
@@ -61,7 +61,7 @@ class ReplayBuffer(object):
     return np.transpose(state, (1, 2, 0))
 
   def terminal(self, index):
-    return self._done[(index - self.history_size + 1):(index + 1)].any()
+    return self._done[index - self.history_size:index].any()
 
   def sample(self, batch_size):
     states = []
@@ -102,7 +102,7 @@ class TestReplayBuffer(unittest.TestCase):
 
   def test_add_states(self):
     state = self.env.reset()
-    self.replay_buffer.init_state(state)
+    self.replay_buffer.add(state, 0, 0, False)
     while True:
       action = random.randint(0, 3)
       next_state, reward, done, info = self.env.step(action)
@@ -130,7 +130,7 @@ class TestReplayBuffer(unittest.TestCase):
 
   def test_last_state(self):
     state = self.env.reset()
-    self.replay_buffer.init_state(state)
+    self.replay_buffer.add(state, 0, 0, False)
     while True:
       action = random.randint(0, 3)
       next_state, reward, done, info = self.env.step(action)
