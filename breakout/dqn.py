@@ -61,10 +61,12 @@ class DQN(object):
     with tf.name_scope('optimization'):
       self.learning_rate = tf.Variable(config.learning_rate,
         trainable=False, name='learning_rate')
-      optimizer = tf.train.RMSPropOptimizer(
-        self.learning_rate,
-        decay=config.decay,
-        momentum=config.momentum,
+      #  optimizer = tf.train.RMSPropOptimizer(
+      #    self.learning_rate,
+      #    decay=config.decay,
+      #    momentum=config.momentum,
+      #    epsilon=config.eps)
+      optimizer = tf.train.AdamOptimizer(self.learning_rate,
         epsilon=config.eps)
       self.train_ops = optimizer.minimize(self.loss)
 
