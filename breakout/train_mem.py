@@ -40,7 +40,7 @@ tf.app.flags.DEFINE_float('decay', 0.95,
   'decay factor for next gradients for RMSProp')
 tf.app.flags.DEFINE_float('momentum', 0.95, 'squred momentum for RMSProp')
 tf.app.flags.DEFINE_float('eps', 0.01, 'eps for avoiding zero for RMSProp')
-tf.app.flags.DEFINE_integer('batch_size', 32, 'batch size to train')
+tf.app.flags.DEFINE_integer('batch_size', 64, 'batch size to train')
 tf.app.flags.DEFINE_integer('image_width', 84, 'input image width')
 tf.app.flags.DEFINE_integer('image_height', 84, 'input image height')
 tf.app.flags.DEFINE_bool('use_huber', True, 'use huber loss')
