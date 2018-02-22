@@ -48,7 +48,7 @@ tf.app.flags.DEFINE_integer('skip', 4, 'skip frame')
 tf.app.flags.DEFINE_integer('history_length', 4, 'history length')
 
 tf.app.flags.DEFINE_integer('display_episode', 1, 'display result per episode')
-tf.app.flags.DEFINE_integer('save_episode', 1000, 'save model per episode')
+tf.app.flags.DEFINE_integer('save_episode', 6000, 'save model per episode')
 tf.app.flags.DEFINE_integer('summary_episode', 10, 'save summary per episode')
 
 
@@ -158,7 +158,7 @@ def run_episode(env):
   logger.info('filling replay buffer...')
   while not trainer.ready():
     state = env.reset()
-    trainer.replay_buffer.add(state, 0, 0, False)
+    trainer.replay_buffer.add_init_state(state)
     while True:
       action = random.randint(0, 3)
       next_state, reward, done, lives = env.step(action)
@@ -187,7 +187,7 @@ def run_episode(env):
     actions = [0 for _ in range(env.action_size)]
     for episode in range(FLAGS.max_episodes + 1):
       state = env.reset()
-      trainer.replay_buffer.add(state, 0, 0, False)
+      trainer.replay_buffer.add_init_state(state)
 
       epsilon = decay_epsilon(epoch, FLAGS.decay_to_epoch)
 
@@ -215,12 +215,12 @@ def run_episode(env):
         if done:
           total_rewards.append(total_reward)
 
+          if total_reward > max_total_reward * 0.8 and FLAGS.saving:
+            saver.save(sess, os.path.join(folder, 'breakout'),
+              global_step=episode)
+
           if total_reward > max_total_reward:
             max_total_reward = total_reward
-
-            if FLAGS.saving:
-              saver.save(sess, os.path.join(folder, 'breakout'),
-                global_step=episode)
 
           if episode % FLAGS.display_episode == 0:
             loss = trainer.compute_loss(sess)
@@ -239,6 +239,10 @@ def run_episode(env):
             summary = trainer.get_summary(sess)
             summary_writer.add_summary(summary, global_step=episode)
           break
+
+      if FLAGS.saving and episode % FLAGS.save_episode == 0:
+        saver.save(sess, os.path.join(folder, 'breakout'),
+          global_step=episode)
 
     if FLAGS.saving:
       saver.save(sess, os.path.join(folder, 'breakout'),
