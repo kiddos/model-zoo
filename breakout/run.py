@@ -55,7 +55,6 @@ def main(_):
         total_reward += reward
 
         env.render()
-        time.sleep(0.066)
 
         if done:
           break
