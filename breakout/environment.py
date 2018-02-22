@@ -110,10 +110,11 @@ class SimpleEnvironment(object):
   def reset(self):
     if self.lives == 0:
       state = self.env.reset()
-    else:
-      noop = 0
+
+    noop = 0
+    for _ in range(randint(1, 30)):
       state, _, _, info = self.env.step(noop)
-      self.lives = info['ale.lives']
+    self.lives = info['ale.lives']
     return state
 
   def step(self, action):
