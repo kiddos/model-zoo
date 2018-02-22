@@ -78,29 +78,26 @@ class HistoryFrameEnvironment(object):
 
   def reset(self):
     if self.lives == 0:
-      state = self.env.reset()
-      state = process_image(state, self.image_width, self.image_height)
-      for _ in range(self.history_size - 1):
-        self.history.append(state)
+      self.state = self.env.reset()
+      for _ in range(randint(0, 30)):
+        self.state, _, _, _ = self.env.step(0)
 
-    noop = 0
-    for _ in range(randint(1, 30)):
-      state, _, _, info = self.env.step(noop)
-    self.lives = info['ale.lives']
-    self.history.append(
-      process_image(state, self.image_width, self.image_height))
+      self.state = process_image(self.state, self.image_width, self.image_height)
+      for _ in range(self.history_size):
+        self.history.append(self.state)
+    else:
+      self.history.append(self.state)
     return np.concatenate(self.history, axis=2)
 
   def step(self, action):
-    state, reward, done, info = self.env.step(action)
-    self.history.append(process_image(
-      state, self.image_width, self.image_height))
+    self.state, reward, done, info = self.env.step(action)
+    self.state = process_image(self.state, self.image_width, self.image_height)
+    self.history.append(self.state)
     if info['ale.lives'] < self.lives:
       done = True
       reward = -1
     self.lives = info['ale.lives']
-    return np.concatenate(self.history, axis=2), \
-      reward, done, info['ale.lives']
+    return np.concatenate(self.history, axis=2), reward, done, self.lives
 
   def render(self):
     self.env.render()
@@ -114,21 +111,18 @@ class SimpleEnvironment(object):
 
   def reset(self):
     if self.lives == 0:
-      state = self.env.reset()
-
-    noop = 0
-    for _ in range(randint(1, 30)):
-      state, _, _, info = self.env.step(noop)
-    self.lives = info['ale.lives']
-    return state
+      self.state = self.env.reset()
+      for _ in range(randint(0, 30)):
+        self.state, _, _, _ = self.env.step(0)
+    return self.state
 
   def step(self, action):
-    state, reward, done, info = self.env.step(action)
+    self.state, reward, done, info = self.env.step(action)
     if info['ale.lives'] < self.lives:
       done = True
       reward = -1
     self.lives = info['ale.lives']
-    return state, reward, done, info['ale.lives']
+    return self.state, reward, done, info['ale.lives']
 
   def render(self):
     self.env.render()
@@ -192,6 +186,7 @@ class TestEnvironment(unittest.TestCase):
         if done:
           break
 
+      print(lives)
       print('steps: %d' % steps)
       print('total reward: %f' % (total_reward))
 
