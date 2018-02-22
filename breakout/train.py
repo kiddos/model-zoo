@@ -222,12 +222,10 @@ def run_episode(env):
           env.render()
         if done:
           total_rewards.append(total_reward)
-          if total_reward > max_total_reward:
-            max_total_reward = total_reward
 
-            if FLAGS.saving:
-              saver.save(sess, os.path.join(folder, 'breakout'),
-                global_step=episode)
+          if total_reward > max_total_reward * 0.8 and FLAGS.saving:
+            saver.save(sess, os.path.join(folder, 'breakout'),
+              global_step=episode)
 
           if episode % FLAGS.display_episode == 0:
             loss = trainer.compute_loss(sess)
