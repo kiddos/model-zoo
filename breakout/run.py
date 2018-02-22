@@ -15,6 +15,8 @@ logger.setLevel(logging.INFO)
 
 FLAGS = tf.app.flags.FLAGS
 tf.app.flags.DEFINE_string('model', 'breakout.pb', 'model to run')
+tf.app.flags.DEFINE_bool('record', False, 'record result')
+tf.app.flags.DEFINE_bool('render', True, 'render result')
 
 
 def load_graph():
@@ -31,7 +33,8 @@ def load_graph():
 
 
 def main(_):
-  env = HistoryFrameEnvironment('BreakoutDeterministic-v0', 4, 84, 84)
+  env = HistoryFrameEnvironment('BreakoutDeterministic-v0', 4, 84, 84,
+    FLAGS.record, '/tmp/breakout-record')
 
   graph = load_graph()
   input_state = graph.get_tensor_by_name('import/state:0')
@@ -54,7 +57,8 @@ def main(_):
         steps += 1
         total_reward += reward
 
-        env.render()
+        if FLAGS.render:
+          env.render()
 
         if done:
           break
