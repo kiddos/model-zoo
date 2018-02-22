@@ -227,6 +227,9 @@ def run_episode(env):
             saver.save(sess, os.path.join(folder, 'breakout'),
               global_step=episode)
 
+          if total_reward > max_total_reward:
+            max_total_reward = total_reward
+
           if episode % FLAGS.display_episode == 0:
             loss = trainer.compute_loss(sess)
             ave_q = trainer.ave_q_values(sess)
