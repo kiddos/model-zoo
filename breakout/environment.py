@@ -62,7 +62,8 @@ class SkipFrameEnvironment(object):
 
 
 class HistoryFrameEnvironment(object):
-  def __init__(self, name, history_size, image_width, image_height):
+  def __init__(self, name, history_size, image_width, image_height,
+      record=False, directory=None):
     self.history = deque(maxlen=history_size)
     self.image_width = image_width
     self.image_height = image_height
@@ -70,6 +71,10 @@ class HistoryFrameEnvironment(object):
     self.action_size = self.env.action_space.n
     self.lives = 0
     self.history_size = history_size
+
+    if record:
+      self.env = gym.wrappers.Monitor(self.env, directory,
+        video_callable=lambda episode_id: True)
 
   def reset(self):
     if self.lives == 0:
