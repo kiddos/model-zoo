@@ -46,6 +46,10 @@ class ReplayBuffer(object):
     self._current_index = (self._current_index + 1) % self.size
     self._current_size = min(self._current_size + 1, self.size)
 
+  def add_init_state(self, state):
+    for _ in range(self.history_size):
+      self.add(state, 0, 0, False)
+
   @property
   def current_size(self):
     return len(self._state)
