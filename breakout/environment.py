@@ -5,6 +5,7 @@ from PIL import Image
 from collections import deque
 import time
 import cv2
+import unittest
 
 
 def process_image(state, input_width, input_height):
@@ -73,15 +74,16 @@ class HistoryFrameEnvironment(object):
   def reset(self):
     if self.lives == 0:
       state = self.env.reset()
+      state = process_image(state, self.image_width, self.image_height)
       for _ in range(self.history_size - 1):
         self.history.append(state)
-    else:
-      noop = 0
-      state, _, _, info = self.env.step(noop)
-      self.lives = info['ale.lives']
 
-    self.history.append(process_image(
-      state, self.image_width, self.image_height))
+    noop = 0
+    for _ in range(randint(1, 30)):
+      state, _, _, info = self.env.step(noop)
+    self.lives = info['ale.lives']
+    self.history.append(
+      process_image(state, self.image_width, self.image_height))
     return np.concatenate(self.history, axis=2)
 
   def step(self, action):
@@ -126,30 +128,101 @@ class SimpleEnvironment(object):
     self.env.render()
 
 
+class TestEnvironment(unittest.TestCase):
+  def setUp(self):
+    self.run_count = 10
+    self.render = True
+
+  def test_skipframe_env(self):
+    env = SkipFrameEnvironment('BreakoutNoFrameskip-v0', 4, 84, 84)
+
+    for i in range(self.run_count):
+      state = env.reset()
+      self.assertEqual(state.shape[2], 4)
+      steps = 0
+
+      total_reward = 0
+      while True:
+        action = randint(0, 3)
+        next_state, reward, done, lives = env.step(action)
+
+        self.assertEqual(state.shape[2], 4)
+
+        steps += 1
+        total_reward += reward
+
+        if self.render:
+          env.render()
+
+        if done:
+          break
+
+  def test_history_env(self):
+    env = HistoryFrameEnvironment('BreakoutDeterministic-v0', 4, 84, 84)
+
+    for i in range(self.run_count):
+      state = env.reset()
+      self.assertEqual(state.shape[2], 4)
+      steps = 0
+
+      total_reward = 0
+      while True:
+        action = randint(0, 3)
+        next_state, reward, done, lives = env.step(action)
+
+        self.assertEqual(state.shape[2], 4)
+
+        steps += 1
+        total_reward += reward
+
+        eq = np.equal(next_state[:, :, 0:3], state[:, :, 1:]).all()
+        self.assertTrue(eq)
+
+        state = next_state
+
+        if self.render:
+          env.render()
+
+        if done:
+          break
+
+      print('steps: %d' % steps)
+      print('total reward: %f' % (total_reward))
+
+  def test_simple_env(self):
+    env = SimpleEnvironment('BreakoutDeterministic-v0')
+
+    for i in range(self.run_count):
+      state = env.reset()
+      self.assertEqual(state.shape[0], 210)
+      self.assertEqual(state.shape[1], 160)
+      self.assertEqual(state.shape[2], 3)
+      steps = 0
+
+      total_reward = 0
+      while True:
+        action = randint(0, 3)
+        next_state, reward, done, lives = env.step(action)
+
+        self.assertEqual(next_state.shape[0], 210)
+        self.assertEqual(next_state.shape[1], 160)
+        self.assertEqual(next_state.shape[2], 3)
+
+        steps += 1
+        total_reward += reward
+
+        if self.render:
+          env.render()
+
+        if done:
+          break
+
+      print('steps: %d' % steps)
+      print('total reward: %f' % (total_reward))
+
+
 def main():
-  #  env = SkipFrameEnvironment('BreakoutNoFrameskip-v4', 4, 84, 84)
-  env = HistoryFrameEnvironment('BreakoutDeterministic-v0', 4, 84, 84)
-
-  for i in range(100):
-    state = env.reset()
-    assert state.shape[2] == 4
-    steps = 0
-
-    total_reward = 0
-    while True:
-      action = randint(0, 3)
-      state, reward, done, lives = env.step(action)
-      assert state.shape[2] == 4
-      steps += 1
-      total_reward += reward
-
-      env.render()
-
-      if done:
-        break
-
-    print('steps: %d' % steps)
-    print('total reward: %f' % (total_reward))
+  unittest.main()
 
 
 if __name__ == '__main__':
