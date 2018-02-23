@@ -20,13 +20,6 @@ class ReplayBuffer(object):
     self._done = np.zeros(shape=[replay_buffer_size], dtype=np.bool)
     self._current_index = 0
     self._current_size = 0
-    self.padd()
-
-  def padd(self):
-    empty = np.zeros(shape=[84, 84, 3], dtype=np.uint8)
-    no_op = 0
-    for _ in range(self.history_size - 1):
-      self.add(empty, no_op, 0, False)
 
   def process_image(self, state):
     image = Image.fromarray(state).crop([8, 32, 152, 210])
