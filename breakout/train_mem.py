@@ -35,7 +35,7 @@ tf.app.flags.DEFINE_integer('decay_to_epoch', 1000000,
   'decay epsilon until epoch')
 tf.app.flags.DEFINE_float('min_epsilon', 0.1, 'min epsilon to decay to')
 tf.app.flags.DEFINE_float('gamma', 0.99, 'discount factor')
-tf.app.flags.DEFINE_float('learning_rate', 0.00025, 'learning rate to train')
+tf.app.flags.DEFINE_float('learning_rate', 0.001, 'learning rate to train')
 tf.app.flags.DEFINE_float('decay', 0.95,
   'decay factor for next gradients for RMSProp')
 tf.app.flags.DEFINE_float('momentum', 0.95, 'squred momentum for RMSProp')
