@@ -79,9 +79,9 @@ class HistoryFrameEnvironment(object):
   def reset(self):
     if self.lives == 0:
       self.state = self.env.reset()
-      for _ in range(randint(0, 30)):
-        self.state, _, _, _ = self.env.step(0)
-
+      # start the game
+      self.state, _, _, info = self.env.step(1)
+      self.lives = info['ale.lives']
       self.state = process_image(self.state, self.image_width, self.image_height)
       for _ in range(self.history_size):
         self.history.append(self.state)
@@ -112,8 +112,9 @@ class SimpleEnvironment(object):
   def reset(self):
     if self.lives == 0:
       self.state = self.env.reset()
-      for _ in range(randint(0, 30)):
-        self.state, _, _, _ = self.env.step(0)
+      # start the game
+      self.state, _, _, info = self.env.step(1)
+      self.lives = info['ale.lives']
     return self.state
 
   def step(self, action):
@@ -130,7 +131,7 @@ class SimpleEnvironment(object):
 
 class TestEnvironment(unittest.TestCase):
   def setUp(self):
-    self.run_count = 10
+    self.run_count = 100
     self.render = True
 
   def test_skipframe_env(self):
@@ -186,15 +187,13 @@ class TestEnvironment(unittest.TestCase):
         if done:
           break
 
-      print(lives)
-      print('steps: %d' % steps)
-      print('total reward: %f' % (total_reward))
-
   def test_simple_env(self):
     env = SimpleEnvironment('BreakoutDeterministic-v0')
 
     for i in range(self.run_count):
       state = env.reset()
+      env.step(1)
+
       self.assertEqual(state.shape[0], 210)
       self.assertEqual(state.shape[1], 160)
       self.assertEqual(state.shape[2], 3)
@@ -202,7 +201,8 @@ class TestEnvironment(unittest.TestCase):
 
       total_reward = 0
       while True:
-        action = randint(0, 3)
+        #  action = randint(0, 3)
+        action = 0
         next_state, reward, done, lives = env.step(action)
 
         self.assertEqual(next_state.shape[0], 210)
@@ -215,11 +215,10 @@ class TestEnvironment(unittest.TestCase):
         if self.render:
           env.render()
 
+        #  time.sleep(0.1)
+
         if done:
           break
-
-      print('steps: %d' % steps)
-      print('total reward: %f' % (total_reward))
 
 
 def main():
