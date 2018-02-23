@@ -80,12 +80,11 @@ class HistoryFrameEnvironment(object):
     if self.lives == 0:
       self.state = self.env.reset()
       # start the game
-      self.state, _, _, info = self.env.step(1)
-      self.lives = info['ale.lives']
-      self.state = process_image(self.state, self.image_width, self.image_height)
-      for _ in range(self.history_size):
-        self.history.append(self.state)
-    else:
+    self.state, _, _, info = self.env.step(1)
+    self.lives = info['ale.lives']
+    self.state = process_image(self.state, self.image_width, self.image_height)
+
+    for _ in range(self.history_size):
       self.history.append(self.state)
     return np.concatenate(self.history, axis=2)
 
@@ -112,9 +111,9 @@ class SimpleEnvironment(object):
   def reset(self):
     if self.lives == 0:
       self.state = self.env.reset()
-      # start the game
-      self.state, _, _, info = self.env.step(1)
-      self.lives = info['ale.lives']
+    # start the game
+    self.state, _, _, info = self.env.step(1)
+    self.lives = info['ale.lives']
     return self.state
 
   def step(self, action):
