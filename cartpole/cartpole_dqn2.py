@@ -46,7 +46,7 @@ class DQN(object):
         tf.reduce_max(next_q_values, axis=1)
       y = tf.reduce_sum(q_values * self.action_mask, axis=1)
       #  self.loss = tf.reduce_mean(tf.square(y - target))
-      diff = y - target
+      diff = y - tf.stop_gradient(target)
       diff_abs = tf.abs(diff)
       condition = tf.cast(tf.less_equal(diff_abs, 1.0), tf.float32)
       error = tf.square(diff * condition) / 2.0 + \
@@ -57,10 +57,11 @@ class DQN(object):
     with tf.name_scope('optimization'):
       self.learning_rate = tf.Variable(learning_rate, trainable=False,
         name='learning_rate')
-      optimizer = tf.train.AdamOptimizer(self.learning_rate)
-      gradients = optimizer.compute_gradients(self.loss)
-      gradients = [(tf.clip_by_value(g, -1, 1), v) for g, v in gradients]
-      self.train_ops = optimizer.apply_gradients(gradients)
+      optimizer = tf.train.AdamOptimizer(self.learning_rate, epsilon=0.01)
+      self.train_ops = optimizer.minimize(self.loss)
+      #  gradients = optimizer.compute_gradients(self.loss)
+      #  gradients = [(tf.clip_by_value(g, -1, 1), v) for g, v in gradients]
+      #  self.train_ops = optimizer.apply_gradients(gradients)
 
       tf.summary.scalar('learning_rate', self.learning_rate)
 
@@ -77,14 +78,9 @@ class DQN(object):
 
   def inference(self, inputs, trainable=True):
     with tf.name_scope('hidden1'):
-      fc = tf.contrib.layers.fully_connected(inputs, 64, trainable=trainable,
-        activation_fn=tf.nn.tanh,
+      fc = tf.contrib.layers.fully_connected(inputs, 32, trainable=trainable,
+        activation_fn=tf.nn.relu,
         weights_initializer=tf.random_normal_initializer(stddev=0.1))
-
-    #  with tf.name_scope('hidden2'):
-    #    fc = tf.contrib.layers.fully_connected(fc, 128, trainable=trainable,
-    #      activation_fn=tf.nn.relu,
-    #      weights_initializer=tf.variance_scaling_initializer())
 
     with tf.name_scope('output'):
       outputs = tf.contrib.layers.fully_connected(fc, 2, activation_fn=None,
@@ -300,7 +296,7 @@ def main():
     default='False', help='rather to save the training result')
   args = parser.parse_args()
 
-  env = gym.make('CartPole-v0')
+  env = gym.make('CartPole-v1')
   run_episode(args, env)
 
 
