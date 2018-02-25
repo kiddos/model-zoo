@@ -46,7 +46,7 @@ class DQN(object):
       action_mask = tf.one_hot(self.action,
         config.action_size, name='action_mask')
       y = tf.reduce_sum(action_mask * self.q_values, axis=1, name='y')
-      diff = y - tf.stop_gradien(target)
+      diff = y - tf.stop_gradient(target)
 
       if use_huber:
         # Huber's loss
