@@ -34,6 +34,8 @@ class DQN(object):
       assert len(train_vars) == len(target_vars)
       assert len(train_vars) > 0
       for i in range(len(train_vars)):
+        assert target_vars[i].get_shape().as_list() == \
+            train_vars[i].get_shape().as_list()
         self.copy_ops.append(tf.assign(target_vars[i], train_vars[i]))
         assert target_vars[i] not in tf.trainable_variables()
         assert train_vars[i] in tf.trainable_variables()
@@ -41,20 +43,14 @@ class DQN(object):
     with tf.name_scope('loss'):
       target = self.reward + config.gamma * \
         tf.cast(tf.logical_not(self.done), tf.float32) * \
-        tf.reduce_max(self.next_q_values, axis=1)
+        tf.stop_gradient(tf.reduce_max(self.next_q_values, axis=1))
 
       action_mask = tf.one_hot(self.action,
         config.action_size, name='action_mask')
       y = tf.reduce_sum(action_mask * self.q_values, axis=1, name='y')
-      diff = y - tf.stop_gradient(target)
 
-      if use_huber:
-        # Huber's loss
-        error = tf.where(tf.abs(diff) < 1.0,
-          0.5 * tf.square(diff), tf.abs(diff) - 0.5)
-        self.loss = tf.reduce_mean(error, name='loss')
-      else:
-        self.loss = tf.reduce_mean(tf.square(diff), name='loss')
+      self.loss = tf.losses.huber_loss(target, y,
+        reduction=tf.losses.Reduction.MEAN)
 
       tf.summary.scalar('loss', self.loss)
 
@@ -67,8 +63,10 @@ class DQN(object):
       #    momentum=config.momentum,
       #    epsilon=config.eps)
       optimizer = tf.train.AdamOptimizer(self.learning_rate,
-        epsilon=config.eps)
-      self.train_ops = optimizer.minimize(self.loss)
+        epsilon=1e-3)
+      grads = optimizer.compute_gradients(self.loss)
+      grads = [(tf.clip_by_value(g, -1, 1), v) for g, v, in grads]
+      self.train_ops = optimizer.apply_gradients(grads)
 
       tf.summary.scalar('learning_rate', self.learning_rate)
 
@@ -77,9 +75,9 @@ class DQN(object):
 
   def _setup_inputs(self):
     c = self.config
-    self.state = tf.placeholder(dtype=tf.float32, name='state',
+    self.state = tf.placeholder(dtype=tf.uint8, name='state',
       shape=[None, c.input_height, c.input_width, c.skip])
-    self.next_state = tf.placeholder(dtype=tf.float32, name='next_state',
+    self.next_state = tf.placeholder(dtype=tf.uint8, name='next_state',
       shape=[None, c.input_height, c.input_width, c.skip])
     self.reward = tf.placeholder(dtype=tf.float32, name='reward', shape=[None])
     self.done = tf.placeholder(dtype=tf.bool, name='done', shape=[None])
@@ -88,7 +86,7 @@ class DQN(object):
 
   def inference(self, inputs, trainable=True):
     with tf.name_scope('norm'):
-      inputs = tf.div(inputs, 255.0)
+      inputs = tf.div(tf.cast(inputs, tf.float32), 255.0)
       images = tf.split(inputs, [1, 1, 1, 1], axis=3)
       for i in range(4):
         tf.summary.image('input_images_%d' % i, images[i])
@@ -96,17 +94,17 @@ class DQN(object):
     initializer = tf.variance_scaling_initializer()
     with tf.name_scope('conv1'):
       conv = tf.contrib.layers.conv2d(inputs, 32, stride=4, kernel_size=8,
-        trainable=trainable, padding='VALID',
+        trainable=trainable, padding='SAME',
         weights_initializer=initializer)
 
     with tf.name_scope('conv2'):
       conv = tf.contrib.layers.conv2d(conv, 64, stride=2, kernel_size=4,
-        trainable=trainable, padding='VALID',
+        trainable=trainable, padding='SAME',
         weights_initializer=initializer)
 
     with tf.name_scope('conv3'):
       conv = tf.contrib.layers.conv2d(conv, 64, stride=1, kernel_size=3,
-        trainable=trainable, padding='VALID',
+        trainable=trainable, padding='SAME',
         weights_initializer=initializer)
 
     with tf.name_scope('fully_connected'):
