@@ -21,10 +21,6 @@ class ReplayBuffer(object):
     self._current_index = 0
     self._current_size = 0
 
-    padd = np.zeros(shape=[self.h, self.w])
-    for _ in range(self.history_size - 1):
-      self.history.append(padd)
-
   def process_image(self, state):
     image = Image.fromarray(state).crop([8, 32, 152, 210])
     image = image.resize([self.w, self.h], Image.NEAREST).convert('L')
@@ -44,6 +40,10 @@ class ReplayBuffer(object):
     self._current_size = min(self._current_size + 1, self.size)
 
   def add_init_state(self, state):
+    padd = np.zeros(shape=[self.h, self.w])
+    for _ in range(self.history_size - 1):
+      self.history.append(padd)
+
     self.add(state, 0, 0, False)
 
   @property
