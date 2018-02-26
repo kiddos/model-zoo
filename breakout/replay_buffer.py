@@ -21,6 +21,10 @@ class ReplayBuffer(object):
     self._current_index = 0
     self._current_size = 0
 
+    padd = np.zeros(shape=[self.h, self.w])
+    for _ in range(self.history_size - 1):
+      self.history.append(padd)
+
   def process_image(self, state):
     image = Image.fromarray(state).crop([8, 32, 152, 210])
     image = image.resize([self.w, self.h], Image.NEAREST).convert('L')
@@ -40,8 +44,7 @@ class ReplayBuffer(object):
     self._current_size = min(self._current_size + 1, self.size)
 
   def add_init_state(self, state):
-    for _ in range(self.history_size):
-      self.add(state, 0, 0, False)
+    self.add(state, 0, 0, False)
 
   @property
   def current_size(self):
@@ -50,11 +53,7 @@ class ReplayBuffer(object):
   def get_state(self, index):
     index_from = index - self.history_size
     index_to = index
-    if index_from < 0:
-      state = [self._state[index_from:0], self._state[0:index_to]]
-      state = np.stack(state, axis=0)
-    else:
-      state = self._state[index_from:index_to, ...]
+    state = self._state[index_from:index_to, ...]
     return np.transpose(state, (1, 2, 0))
 
   def terminal(self, index):
@@ -70,15 +69,27 @@ class ReplayBuffer(object):
     if self._current_index < self.history_size:
       min_index *= 2
     for b in range(batch_size):
-      while True:
+      index = random.randint(min_index, self._current_size - 1)
+      while self._done[index - 1]:
         index = random.randint(min_index, self._current_size - 1)
-        if not self.terminal(index):
-          states.append(self.get_state(index))
-          actions.append(self._action[index])
-          next_states.append(self.get_state(index + 1))
-          rewards.append(self._reward[index])
-          done.append(self._done[index])
+
+      state = self.get_state(index)
+      action = self._action[index]
+      next_state = self.get_state(index + 1)
+      game_over = self._done[(index - self.history_size):index]
+      reward = self._reward[index]
+      for i in range(-2, -self.history_size - 1):
+        if game_over[i]:
+          state[0:i, ...] = 0
+          next_state[0:(i - 1), ...] = 0
           break
+
+      states.append(state)
+      actions.append(action)
+      next_states.append(next_state)
+      rewards.append(reward)
+      done.append(self._done[index - 1])
+
     states = np.stack(states, axis=0)
     actions = np.array(actions)
     next_states = np.stack(next_states, axis=0)
