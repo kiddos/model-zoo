@@ -78,7 +78,7 @@ class ReplayBuffer(object):
       next_state = self.get_state(index + 1)
       game_over = self._done[(index - self.history_size):index]
       reward = self._reward[index]
-      for i in range(-2, -self.history_size - 1):
+      for i in range(-2, -self.history_size - 1, -1):
         if game_over[i]:
           state[0:i, ...] = 0
           next_state[0:(i - 1), ...] = 0
