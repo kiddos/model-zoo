@@ -22,7 +22,9 @@ class PlantNaiveModel(object):
       assert len(var) > 0
       reg_term = 0
       for i in range(len(var)):
-        reg_term += tf.reduce_sum(tf.square(var[i]))
+        if len(var[i].get_shape().as_list()) > 1:
+          reg_term += tf.reduce_sum(tf.square(var[i]))
+      assert reg_term != 0
 
       self.loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(
         logits=self.logits, labels=self.labels))
