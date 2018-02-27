@@ -79,15 +79,21 @@ class PlantNaiveModel(object):
     with tf.name_scope('pool2'):
       pool = tf.contrib.layers.max_pool2d(conv, 2)
 
+    with tf.name_scope('drop2'):
+      drop = tf.nn.dropout(pool, keep_prob=keep_prob)
+
     with tf.name_scope('conv3'):
-      conv = tf.contrib.layers.conv2d(pool, 128, kernel_size=3, stride=1,
+      conv = tf.contrib.layers.conv2d(drop, 128, kernel_size=3, stride=1,
         weights_initializer=init)
 
     with tf.name_scope('pool3'):
       pool = tf.contrib.layers.max_pool2d(conv, 2)
 
+    with tf.name_scope('drop3'):
+      drop = tf.nn.dropout(pool, keep_prob=keep_prob)
+
     with tf.name_scope('conv4'):
-      conv = tf.contrib.layers.conv2d(pool, 256, kernel_size=3, stride=1,
+      conv = tf.contrib.layers.conv2d(drop, 256, kernel_size=3, stride=1,
         weights_initializer=init)
 
     with tf.name_scope('pool4'):
