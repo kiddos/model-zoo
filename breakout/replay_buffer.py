@@ -51,13 +51,10 @@ class ReplayBuffer(object):
     return self._current_size
 
   def get_state(self, index):
-    index_from = index - self.history_size
-    index_to = index
+    index_from = index - self.history_size + 1
+    index_to = index + 1
     state = self._state[index_from:index_to, ...]
     return np.transpose(state, (1, 2, 0))
-
-  def terminal(self, index):
-    return self._done[index - self.history_size:index].any()
 
   def sample(self, batch_size):
     states = []
@@ -70,25 +67,28 @@ class ReplayBuffer(object):
       min_index *= 2
     for b in range(batch_size):
       index = random.randint(min_index, self._current_size - 1)
-      while self._done[index - 1]:
-        index = random.randint(min_index, self._current_size - 1)
-
-      state = self.get_state(index)
+      state = self.get_state(index - 1)
       action = self._action[index]
-      next_state = self.get_state(index + 1)
-      game_over = self._done[(index - self.history_size):index]
+      next_state = self.get_state(index)
+      over = self._done[index]
       reward = self._reward[index]
-      for i in range(-2, -self.history_size - 1, -1):
+
+      # padd zero
+      game_over = self._done[(index - self.history_size):index]
+      for i in range(-1, -self.history_size - 1, -1):
         if game_over[i]:
-          state[0:i, ...] = 0
-          next_state[0:(i - 1), ...] = 0
+          if i == -1:
+            state[:, ...] = 0
+          else:
+            state[:(i + 1), ...] = 0
+          next_state[:i, ...] = 0
           break
 
       states.append(state)
       actions.append(action)
       next_states.append(next_state)
       rewards.append(reward)
-      done.append(self._done[index - 1])
+      done.append(over)
 
     states = np.stack(states, axis=0)
     actions = np.array(actions)
@@ -137,7 +137,7 @@ class TestReplayBuffer(unittest.TestCase):
 
   def test_last_state(self):
     state = self.env.reset()
-    self.replay_buffer.add(state, 0, 0, False)
+    self.replay_buffer.add_init_state(state)
     while True:
       action = random.randint(0, 3)
       next_state, reward, done, info = self.env.step(action)
