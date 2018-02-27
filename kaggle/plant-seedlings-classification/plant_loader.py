@@ -2,6 +2,10 @@ import sqlite3
 import numpy as np
 import logging
 import os
+import unittest
+import random
+import math
+from PIL import Image
 from argparse import ArgumentParser
 
 logging.basicConfig()
@@ -9,9 +13,17 @@ logger = logging.getLogger('plants')
 logger.setLevel(logging.INFO)
 
 
+parser = ArgumentParser()
+parser.add_argument('--dbname', dest='dbname', default='plants.sqlite3',
+  type=str, help='db to load')
+args = parser.parse_args()
+
+
 class PlantLoader(object):
-  def __init__(self, dbname, training_percent=0.9):
+  def __init__(self, dbname, input_size, training_percent=0.8):
     self.percent = training_percent
+    self.input_size = input_size
+
     if os.path.isfile(dbname):
       self.connection = sqlite3.connect(dbname)
       self.cursor = self.connection.cursor()
@@ -61,6 +73,7 @@ class PlantLoader(object):
     training_size = int(data_size * self.percent)
     training_index = index[:training_size]
     validation_index = index[training_size:]
+
     self.training_data = np.copy(self.images[training_index, :])
     self.training_label = np.copy(self.labels[training_index, :])
     self.validation_data = np.copy(self.images[validation_index, :])
@@ -79,6 +92,41 @@ class PlantLoader(object):
       self.test_images.append(np.reshape(img,
         [self.height, self.width, self.channel]))
     self.test_images = np.array(self.test_images)
+
+  def sample(self, batch_size, all=False):
+    data = self.training_data
+    labels = self.training_label
+    if all:
+      data = self.images
+      labels = self.labels
+
+    batch_data = []
+    batch_label = []
+    max_pad = int(self.input_size * 0.1)
+    for i in range(batch_size):
+      index = random.randint(0, len(data) - 1)
+      img = Image.fromarray(data[index, ...])
+
+      # rotate
+      angle = random.randint(-45, 45)
+      img = img.rotate(angle, resample=Image.BICUBIC)
+
+      # crop out black
+      orig_size = min(img.size)
+      rad = np.abs(angle / 180.0 * math.pi)
+      new_size = orig_size / (np.cos(rad) + np.sin(rad))
+      pad = (orig_size - new_size) / 2
+      img = img.crop([
+        pad + random.randint(0, max_pad),
+        pad + random.randint(0, max_pad),
+        img.size[0] - pad - random.randint(0, max_pad),
+        img.size[1] - pad - random.randint(0, max_pad)
+      ])
+
+      img = img.resize([self.input_size, self.input_size])
+      batch_data.append(np.array(img, np.uint8))
+      batch_label.append(labels[index])
+    return np.array(batch_data), np.array(batch_label)
 
   def get_output_size(self):
     return self.output_size
@@ -116,36 +164,69 @@ class PlantLoader(object):
   def get_test_images(self):
     return self.test_images
 
-def main():
-  parser = ArgumentParser()
-  parser.add_argument('--dbname', dest='dbname', default='plants.sqlite3',
-    type=str, help='db to load')
-  args = parser.parse_args()
 
-  p = PlantLoader(args.dbname)
-  p.load_data()
+class TestPlantLoader(unittest.TestCase):
+  def setUp(self):
+    self.loader = PlantLoader(args.dbname, 64)
+    self.loader.load_data()
 
-  logger.info('all data shape: %s' % str(p.get_data().shape))
-  logger.info('all label shape: %s' % str(p.get_label().shape))
-  assert len(p.get_data()) == len(p.get_label())
+  def test_label_name(self):
+    label_names = self.loader.get_label_name()
+    label_names = [l[0] for l in label_names]
+    self.assertTrue(u'Scentless Mayweed' in label_names)
+    self.assertTrue(u'Common Chickweed' in label_names)
+    self.assertTrue(u'Small-flowered Cranesbill' in label_names)
+    self.assertTrue(u'Black-grass' in label_names)
+    self.assertTrue(u'Charlock' in label_names)
+    self.assertTrue(u'Sugar beet' in label_names)
+    self.assertTrue(u'Shepherds Purse' in label_names)
+    self.assertTrue(u'Cleavers' in label_names)
+    self.assertTrue(u'Loose Silky-bent' in label_names)
+    self.assertTrue(u'Common wheat' in label_names)
+    self.assertTrue(u'Maize' in label_names)
+    self.assertTrue(u'Fat Hen' in label_names)
 
-  logger.info('label names:')
-  for l in p.get_label_name():
-    logger.info(l[0])
-  assert len(p.get_label_name()) == p.get_output_size()
+  def test_validation_set(self):
+    train = self.loader.get_training_data(), self.loader.get_training_labels()
+    logger.info('training data shape: %s', str(train[0].shape))
+    logger.info('training label shape: %s', str(train[1].shape))
 
-  logger.info('training data shape: %s' % str(p.get_training_data().shape))
-  logger.info('training label shape: %s' % str(p.get_training_labels().shape))
-  assert len(p.get_training_data()) == len(p.get_training_labels())
+    valid = self.loader.get_validation_data(), \
+      self.loader.get_validation_labels()
+    logger.info('validation data shape: %s', str(valid[0].shape))
+    logger.info('validation label shape: %s', str(valid[1].shape))
 
-  logger.info('validation data shape: %s' % str(p.get_validation_data().shape))
-  logger.info('validation label shape: %s' %
-    str(p.get_validation_labels().shape))
-  assert len(p.get_validation_data()) == len(p.get_validation_labels())
+    for i in range(len(valid)):
+      eq = False
+      for j in range(len(train)):
+        eq |= (train[0][j, ...] == valid[0][i, ...]).all()
+      self.assertFalse(eq)
 
-  logger.info('test data shape: %s' % str(p.get_test_images().shape))
-  assert len(p.get_test_images()) == len(p.get_test_files())
+  def test_sample(self):
+    try:
+      import cv2
+    except:
+      raise Exception
+
+    label_name = self.loader.get_label_name()
+    label_name = [l[0] for l in label_name]
+
+    display = np.zeros(shape=[512, 512, 3], dtype=np.uint8)
+    sample_data, sample_label = self.loader.sample(64)
+
+    self.assertEqual(len(sample_data), len(sample_data))
+    for i in range(len(sample_data)):
+      r = i % 8
+      c = i / 8
+      display[(r * 64):((r + 1) * 64), (c * 64):((c + 1) * 64), :] = \
+        sample_data[i, ...]
+      l = sample_label[i].argmax()
+      cv2.putText(display, label_name[l], (c * 64, r * 64 + 10),
+        cv2.FONT_HERSHEY_PLAIN, 0.5, (0, 255, 0), 1)
+
+    cv2.imshow('Samples', cv2.cvtColor(display, cv2.COLOR_RGB2BGR))
+    cv2.waitKey(0)
 
 
 if __name__ == '__main__':
-  main()
+  unittest.main()
