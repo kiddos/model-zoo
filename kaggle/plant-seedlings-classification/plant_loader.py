@@ -97,13 +97,13 @@ class PlantLoader(object):
 
     batch_data = []
     batch_label = []
-    max_pad = int(self.input_size * 0.1)
+    max_pad = int(self.input_size * 0.2)
     for i in range(batch_size):
       index = random.randint(0, len(data) - 1)
       img = Image.fromarray(data[index, ...])
 
       # rotate
-      angle = random.randint(-45, 45)
+      angle = random.randint(-180, 180)
       img = img.rotate(angle, resample=Image.BICUBIC)
 
       # crop out black
