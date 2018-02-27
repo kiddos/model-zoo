@@ -2,6 +2,7 @@ import threading
 import unittest
 from argparse import ArgumentParser
 from collections import deque
+from PIL import Image
 
 from plant_loader import PlantLoader
 
@@ -48,6 +49,10 @@ class PlantSampler(object):
   def get_data(self):
     while len(self._batch_data) == 0: pass
     return self._batch_data.popleft()
+
+  def get_validation_data(self):
+    return self._loader.get_validation_data(), \
+      self._loader.get_validation_labels()
 
 
 class TestPlantSampler(unittest.TestCase):
