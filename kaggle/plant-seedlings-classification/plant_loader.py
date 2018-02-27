@@ -13,12 +13,6 @@ logger = logging.getLogger('plants')
 logger.setLevel(logging.INFO)
 
 
-parser = ArgumentParser()
-parser.add_argument('--dbname', dest='dbname', default='plants.sqlite3',
-  type=str, help='db to load')
-args = parser.parse_args()
-
-
 class PlantLoader(object):
   def __init__(self, dbname, input_size, training_percent=0.8):
     self.percent = training_percent
@@ -167,6 +161,11 @@ class PlantLoader(object):
 
 class TestPlantLoader(unittest.TestCase):
   def setUp(self):
+    parser = ArgumentParser()
+    parser.add_argument('--dbname', dest='dbname', default='plants.sqlite3',
+      type=str, help='db to load')
+    args = parser.parse_args()
+
     self.loader = PlantLoader(args.dbname, 64)
     self.loader.load_data()
 
