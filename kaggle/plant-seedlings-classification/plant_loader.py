@@ -97,29 +97,35 @@ class PlantLoader(object):
 
     batch_data = []
     batch_label = []
-    max_pad = int(self.input_size * 0.2)
+    max_pad = int(self.input_size * 0.1)
     for i in range(batch_size):
       index = random.randint(0, len(data) - 1)
       img = Image.fromarray(data[index, ...])
 
       # rotate
-      angle = random.randint(-180, 180)
+      angle = random.randint(-90, 90)
       img = img.rotate(angle, resample=Image.BICUBIC)
 
       # crop out black
       orig_size = min(img.size)
       rad = np.abs(angle / 180.0 * math.pi)
       new_size = orig_size / (np.cos(rad) + np.sin(rad))
-      pad = (orig_size - new_size) / 2
-      img = img.crop([
+      pad = int((orig_size - new_size) / 2)
+      box = [
         pad + random.randint(0, max_pad),
         pad + random.randint(0, max_pad),
         img.size[0] - pad - random.randint(0, max_pad),
         img.size[1] - pad - random.randint(0, max_pad)
-      ])
+      ]
+      img = img.crop(box)
 
       img = img.resize([self.input_size, self.input_size])
-      batch_data.append(np.array(img, np.uint8))
+      noise_factor = random.randint(0, 50)
+      noise = np.random.randint(-noise_factor, noise_factor,
+        [self.input_size, self.input_size, 3])
+      img = np.array(img, np.float32)
+      img = np.clip(img + noise, 0, 255).astype(np.uint8)
+      batch_data.append(img)
       batch_label.append(labels[index])
     return np.array(batch_data), np.array(batch_label)
 
