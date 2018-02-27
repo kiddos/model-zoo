@@ -16,7 +16,7 @@ logger.setLevel(logging.INFO)
 
 FLAGS = tf.app.flags.FLAGS
 tf.app.flags.DEFINE_bool('saving', False, 'saving model')
-tf.app.flags.DEFINE_integer('display_epoches', 1000,
+tf.app.flags.DEFINE_integer('display_epoches', 100,
   'display result per epoches')
 tf.app.flags.DEFINE_integer('save_epoches', 10000,
   'save result per epoches')
@@ -32,7 +32,7 @@ tf.app.flags.DEFINE_integer('input_size', 64, 'input image size')
 tf.app.flags.DEFINE_integer('max_epoch', 300000, 'max epoch to train model')
 tf.app.flags.DEFINE_integer('batch_size', 32, 'training batch size')
 tf.app.flags.DEFINE_float('learning_rate', 1e-4, 'learning rate')
-tf.app.flags.DEFINE_float('lambda_reg', 1e-4, 'regularization term')
+tf.app.flags.DEFINE_float('lambda_reg', 1e-3, 'regularization term')
 tf.app.flags.DEFINE_float('keep_prob', 0.75, 'keep prob for dropout')
 
 
