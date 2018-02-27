@@ -28,7 +28,8 @@ class PlantLoader(object):
 
   def __del__(self):
     logger.info('closing connection...')
-    self.connection.close()
+    if hasattr(self, 'connection'):
+      self.connection.close()
 
   def _setup(self):
     self.cursor.execute("""SELECT * FROM meta;""")
@@ -147,7 +148,12 @@ class PlantLoader(object):
     return self.training_label
 
   def get_validation_data(self):
-    return self.validation_data
+    data = []
+    for i in range(len(self.validation_data)):
+      img = Image.fromarray(self.validation_data[i, ...])
+      img = img.resize([self.input_size, self.input_size])
+      data.append(np.array(img, np.uint8))
+    return np.array(data)
 
   def get_validation_labels(self):
     return self.validation_label
@@ -169,28 +175,29 @@ class TestPlantLoader(unittest.TestCase):
     self.loader = PlantLoader(args.dbname, 64)
     self.loader.load_data()
 
+    self.label_name = self.loader.get_label_name()
+    self.label_name = [l[0] for l in self.label_name]
+
   def test_label_name(self):
-    label_names = self.loader.get_label_name()
-    label_names = [l[0] for l in label_names]
-    self.assertTrue(u'Scentless Mayweed' in label_names)
-    self.assertTrue(u'Common Chickweed' in label_names)
-    self.assertTrue(u'Small-flowered Cranesbill' in label_names)
-    self.assertTrue(u'Black-grass' in label_names)
-    self.assertTrue(u'Charlock' in label_names)
-    self.assertTrue(u'Sugar beet' in label_names)
-    self.assertTrue(u'Shepherds Purse' in label_names)
-    self.assertTrue(u'Cleavers' in label_names)
-    self.assertTrue(u'Loose Silky-bent' in label_names)
-    self.assertTrue(u'Common wheat' in label_names)
-    self.assertTrue(u'Maize' in label_names)
-    self.assertTrue(u'Fat Hen' in label_names)
+    self.assertTrue(u'Scentless Mayweed' in self.label_name)
+    self.assertTrue(u'Common Chickweed' in self.label_name)
+    self.assertTrue(u'Small-flowered Cranesbill' in self.label_name)
+    self.assertTrue(u'Black-grass' in self.label_name)
+    self.assertTrue(u'Charlock' in self.label_name)
+    self.assertTrue(u'Sugar beet' in self.label_name)
+    self.assertTrue(u'Shepherds Purse' in self.label_name)
+    self.assertTrue(u'Cleavers' in self.label_name)
+    self.assertTrue(u'Loose Silky-bent' in self.label_name)
+    self.assertTrue(u'Common wheat' in self.label_name)
+    self.assertTrue(u'Maize' in self.label_name)
+    self.assertTrue(u'Fat Hen' in self.label_name)
 
   def test_validation_set(self):
     train = self.loader.get_training_data(), self.loader.get_training_labels()
     logger.info('training data shape: %s', str(train[0].shape))
     logger.info('training label shape: %s', str(train[1].shape))
 
-    valid = self.loader.get_validation_data(), \
+    valid = self.loader.validation_data, \
       self.loader.get_validation_labels()
     logger.info('validation data shape: %s', str(valid[0].shape))
     logger.info('validation label shape: %s', str(valid[1].shape))
@@ -207,9 +214,6 @@ class TestPlantLoader(unittest.TestCase):
     except:
       raise Exception
 
-    label_name = self.loader.get_label_name()
-    label_name = [l[0] for l in label_name]
-
     display = np.zeros(shape=[512, 512, 3], dtype=np.uint8)
     sample_data, sample_label = self.loader.sample(64)
 
@@ -220,11 +224,39 @@ class TestPlantLoader(unittest.TestCase):
       display[(r * 64):((r + 1) * 64), (c * 64):((c + 1) * 64), :] = \
         sample_data[i, ...]
       l = sample_label[i].argmax()
-      cv2.putText(display, label_name[l], (c * 64, r * 64 + 10),
+      cv2.putText(display, self.label_name[l], (c * 64, r * 64 + 10),
         cv2.FONT_HERSHEY_PLAIN, 0.5, (0, 255, 0), 1)
 
     cv2.imshow('Samples', cv2.cvtColor(display, cv2.COLOR_RGB2BGR))
     cv2.waitKey(0)
+
+  def test_validation_data(self):
+    try:
+      import cv2
+    except:
+      raise Exception
+
+    display = np.zeros(shape=[512, 512, 3], dtype=np.uint8)
+    valid_data = self.loader.get_validation_data()
+    valid_label = self.loader.get_validation_labels()
+
+    self.assertEqual(len(valid_data), len(valid_label))
+    index = np.random.permutation(np.arange(len(valid_data)))[:64]
+    valid_data = valid_data[index, ...]
+    valid_label = valid_label[index, :]
+
+    for i in range(len(valid_data)):
+      r = i % 8
+      c = i / 8
+      display[(r * 64):((r + 1) * 64), (c * 64):((c + 1) * 64), :] = \
+        valid_data[i, ...]
+      l = valid_label[i].argmax()
+      cv2.putText(display, self.label_name[l], (c * 64, r * 64 + 10),
+        cv2.FONT_HERSHEY_PLAIN, 0.5, (0, 255, 0), 1)
+
+    cv2.imshow('Validation data', cv2.cvtColor(display, cv2.COLOR_RGB2BGR))
+    cv2.waitKey(0)
+
 
 
 if __name__ == '__main__':
