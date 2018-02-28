@@ -120,7 +120,6 @@ class SimpleEnvironment(object):
     self.state, reward, done, info = self.env.step(action)
     if info['ale.lives'] < self.lives:
       done = True
-      reward = -1
     self.lives = info['ale.lives']
     return self.state, reward, done, info['ale.lives']
 
