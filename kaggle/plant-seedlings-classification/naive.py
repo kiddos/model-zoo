@@ -66,7 +66,7 @@ class PlantNaiveModel(object):
       tf.summary.image('valid_images', self.valid_images, 1)
 
   def _inference(self, inputs, keep_prob):
-    init = tf.random_normal_initializer(stddev=0.001)
+    init = tf.random_normal_initializer(stddev=0.01)
     with tf.name_scope('conv1'):
       conv = tf.contrib.layers.conv2d(inputs, 32, kernel_size=3, stride=1,
         weights_initializer=init)
@@ -76,8 +76,7 @@ class PlantNaiveModel(object):
 
     init = tf.variance_scaling_initializer()
     with tf.name_scope('conv2'):
-      conv = tf.contrib.layers.conv2d(pool, 64, kernel_size=3, stride=1,
-        weights_initializer=init)
+      conv = self.stack_conv(pool, 64, 3, 1)
 
     with tf.name_scope('pool2'):
       pool = tf.contrib.layers.max_pool2d(conv, 2)
@@ -86,8 +85,7 @@ class PlantNaiveModel(object):
       drop = tf.nn.dropout(pool, keep_prob=keep_prob)
 
     with tf.name_scope('conv3'):
-      conv = tf.contrib.layers.conv2d(drop, 128, kernel_size=3, stride=1,
-        weights_initializer=init)
+      conv = self.stack_conv(drop, 128, 3, 1)
 
     with tf.name_scope('pool3'):
       pool = tf.contrib.layers.max_pool2d(conv, 2)
@@ -96,8 +94,7 @@ class PlantNaiveModel(object):
       drop = tf.nn.dropout(pool, keep_prob=keep_prob)
 
     with tf.name_scope('conv4'):
-      conv = tf.contrib.layers.conv2d(drop, 256, kernel_size=3, stride=1,
-        weights_initializer=init)
+      conv = self.stack_conv(drop, 256, 3, 1)
 
     with tf.name_scope('pool4'):
       pool = tf.contrib.layers.max_pool2d(conv, 2)
@@ -107,7 +104,7 @@ class PlantNaiveModel(object):
 
     with tf.name_scope('fully_connected'):
       flatten = tf.contrib.layers.flatten(drop)
-      fc = tf.contrib.layers.fully_connected(flatten, 256,
+      fc = tf.contrib.layers.fully_connected(flatten, 512,
         weights_initializer=init)
 
     with tf.name_scope('output'):
@@ -115,6 +112,18 @@ class PlantNaiveModel(object):
         weights_initializer=init, activation_fn=None)
       outputs = tf.nn.softmax(logits, name='prediction')
     return logits, outputs
+
+  def stack_conv(self, inputs, depth, ksize, size):
+    init = tf.variance_scaling_initializer()
+    conv = tf.contrib.layers.conv2d(inputs, depth, kernel_size=ksize, stride=1,
+      weights_initializer=init)
+
+    for _ in range(size):
+      conv = tf.contrib.layers.conv2d(conv, depth / 2, kernel_size=1, stride=1,
+        weights_initializer=init)
+      conv = tf.contrib.layers.conv2d(conv, depth, kernel_size=ksize, stride=1,
+        weights_initializer=init)
+    return conv
 
   def _evaluate(self, prediction, labels):
     correct = tf.equal(tf.argmax(prediction, axis=1), tf.argmax(labels, axis=1))
