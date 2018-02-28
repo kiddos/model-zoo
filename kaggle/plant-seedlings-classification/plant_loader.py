@@ -5,6 +5,7 @@ import os
 import unittest
 import random
 import math
+import pickle
 from PIL import Image
 from argparse import ArgumentParser
 
@@ -38,6 +39,15 @@ class PlantLoader(object):
     self.height = meta[1]
     self.channel = meta[2]
     self.output_size = 12
+
+  def _save_temp(self, train_data, train_label, valid_data, valid_label):
+    with open('temp.pickle', 'wb') as f:
+      pickle.dump({
+        'train_data': train_data,
+        'train_label': train_label,
+        'valid_data': valid_data,
+        'valid_label': valid_label,
+      }, f)
 
   def load_data(self):
     if not hasattr(self, 'connection'):
@@ -73,6 +83,9 @@ class PlantLoader(object):
     self.training_label = np.copy(self.labels[training_index, :])
     self.validation_data = np.copy(self.images[validation_index, :])
     self.validation_label = np.copy(self.labels[validation_index, :])
+
+    self._save_temp(self.training_data, self.training_label,
+      self.validation_data, self.validation_label)
 
     self.images = np.copy(self.images[index, :])
     self.labels = np.copy(self.labels[index, :])
