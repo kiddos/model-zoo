@@ -17,8 +17,8 @@ class ReplayBuffer(object):
     self.history = deque(maxlen=history_size)
     self._state = np.zeros(shape=[replay_buffer_size, image_height,
       image_width], dtype=np.uint8)
-    self._action = np.zeros(shape=[replay_buffer_size], dtype=np.int16)
-    self._reward = np.zeros(shape=[replay_buffer_size], dtype=np.int16)
+    self._action = np.zeros(shape=[replay_buffer_size], dtype=np.int32)
+    self._reward = np.zeros(shape=[replay_buffer_size], dtype=np.float32)
     self._done = np.zeros(shape=[replay_buffer_size], dtype=np.bool)
     self._current_index = 0
     self._current_size = 0
@@ -35,8 +35,8 @@ class ReplayBuffer(object):
 
     self._state[self._current_index, ...] = next_state
     self._action[self._current_index] = action
-    self._reward[self._current_index] = np.sign(reward).astype(np.int16)
-    self._done[self._current_index] = np.array(done, np.bool)
+    self._reward[self._current_index] = reward
+    self._done[self._current_index] = done
 
     self._current_index = (self._current_index + 1) % self.size
     self._current_size = min(self._current_size + 1, self.size)
@@ -134,8 +134,8 @@ class TestReplayBuffer(unittest.TestCase):
 
     self.assertEqual(states.dtype, np.uint8)
     self.assertEqual(next_states.dtype, np.uint8)
-    self.assertEqual(actions.dtype, np.int16)
-    self.assertEqual(rewards.dtype, np.int16)
+    self.assertEqual(actions.dtype, np.int32)
+    self.assertEqual(rewards.dtype, np.float32)
     self.assertEqual(done.dtype, np.bool)
 
     eq = np.all(states[:, :, :, 1:] == next_states[:, :, :, :3])
@@ -157,6 +157,10 @@ class TestReplayBuffer(unittest.TestCase):
         cv2.FONT_HERSHEY_PLAIN, 1.0, (255, 255, 255), 1)
       done_text = 'done: ' + str(done[i])
       cv2.putText(display, done_text, (0, 30),
+        cv2.FONT_HERSHEY_PLAIN, 1.0, (255, 255, 255), 1)
+
+      done_text = 'reward: ' + str(rewards[i])
+      cv2.putText(display, done_text, (0, 50),
         cv2.FONT_HERSHEY_PLAIN, 1.0, (255, 255, 255), 1)
 
       cv2.imshow('States', display)
@@ -202,8 +206,13 @@ class TestReplayBuffer(unittest.TestCase):
       action_text = 'action: %s(%d)' % (ACTION_MEANING[action], action)
       cv2.putText(display, action_text, (200, 10),
         cv2.FONT_HERSHEY_PLAIN, 1.0, (255, 255, 255), 1)
+
       done_text = 'done: ' + str(done)
       cv2.putText(display, done_text, (230, 30),
+        cv2.FONT_HERSHEY_PLAIN, 1.0, (255, 255, 255), 1)
+
+      done_text = 'reward: ' + str(reward)
+      cv2.putText(display, done_text, (230, 50),
         cv2.FONT_HERSHEY_PLAIN, 1.0, (255, 255, 255), 1)
 
       cv2.imshow('States', display)

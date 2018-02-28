@@ -94,7 +94,6 @@ class HistoryFrameEnvironment(object):
     self.history.append(self.state)
     if info['ale.lives'] < self.lives:
       done = True
-      reward = -1
     self.lives = info['ale.lives']
     return np.concatenate(self.history, axis=2), reward, done, self.lives
 

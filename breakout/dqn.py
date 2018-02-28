@@ -41,7 +41,8 @@ class DQN(object):
         assert train_vars[i] in tf.trainable_variables()
 
     with tf.name_scope('loss'):
-      target = self.reward + config.gamma * \
+      target = tf.clip_by_value(self.reward, -1, 1) + \
+        config.gamma * \
         tf.cast(tf.logical_not(self.done), tf.float32) * \
         tf.stop_gradient(tf.reduce_max(self.next_q_values, axis=1))
 
