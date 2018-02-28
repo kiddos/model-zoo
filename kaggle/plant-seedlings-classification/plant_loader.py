@@ -133,7 +133,7 @@ class PlantLoader(object):
       img = img.crop(box)
 
       img = img.resize([self.input_size, self.input_size])
-      noise_factor = random.randint(0, 50)
+      noise_factor = random.randint(1, 50)
       noise = np.random.randint(-noise_factor, noise_factor,
         [self.input_size, self.input_size, 3])
       img = np.array(img, np.float32)
