@@ -32,7 +32,7 @@ tf.app.flags.DEFINE_integer('input_size', 64, 'input image size')
 tf.app.flags.DEFINE_integer('max_epoch', 300000, 'max epoch to train model')
 tf.app.flags.DEFINE_integer('batch_size', 32, 'training batch size')
 tf.app.flags.DEFINE_float('learning_rate', 1e-4, 'learning rate')
-tf.app.flags.DEFINE_float('lambda_reg', 1e-3, 'regularization term')
+tf.app.flags.DEFINE_float('lambda_reg', 3e-3, 'regularization term')
 tf.app.flags.DEFINE_float('keep_prob', 0.75, 'keep prob for dropout')
 
 
@@ -95,6 +95,7 @@ def train():
 
         logger.info('%d. loss: %f, train: %f, valid: %f',
           epoch, loss, train, valid)
+        logger.info('queue size: %d', sampler.queue_size())
 
       if FLAGS.saving and epoch % FLAGS.save_epoches == 0 and epoch != 0:
         saver.save(sess, checkpoint, global_step=epoch)
