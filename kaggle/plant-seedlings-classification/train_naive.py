@@ -34,6 +34,7 @@ tf.app.flags.DEFINE_integer('batch_size', 32, 'training batch size')
 tf.app.flags.DEFINE_float('learning_rate', 1e-4, 'learning rate')
 tf.app.flags.DEFINE_float('lambda_reg', 3e-3, 'regularization term')
 tf.app.flags.DEFINE_float('keep_prob', 0.75, 'keep prob for dropout')
+tf.app.flags.DEFINE_integer('decay_epoches', 30000, 'decay learning rate')
 
 
 def train():
@@ -115,6 +116,10 @@ def train():
         model.labels: batch_label,
         model.keep_prob: FLAGS.keep_prob,
       })
+
+      if epoch % FLAGS.decay_epoches == 0 and epoch != 0:
+        logger.info('decay learning rate...')
+        sess.run(model.decay_lr)
 
   stop(0, 0)
 

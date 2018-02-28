@@ -37,6 +37,7 @@ class PlantNaiveModel(object):
         name='learning_rate')
       optimizer = tf.train.GradientDescentOptimizer(self.learning_rate)
       self.train_ops = optimizer.minimize(self.loss)
+      self.decay_lr = tf.assign(self.learning_rate, self.learning_rate * 0.9)
 
     with tf.name_scope('evaluation'):
       self.train_acc = self._evaluate(self.output, self.labels)
