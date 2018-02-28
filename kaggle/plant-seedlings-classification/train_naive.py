@@ -116,7 +116,7 @@ def train():
         model.keep_prob: FLAGS.keep_prob,
       })
 
-  stop()
+  stop(0, 0)
 
 
 if __name__ == '__main__':
