@@ -115,6 +115,12 @@ class PlantLoader(object):
       index = random.randint(0, len(data) - 1)
       img = Image.fromarray(data[index, ...])
 
+      # flip
+      if random.random() < 0.25:
+        img = img.transpose(Image.FLIP_LEFT_RIGHT)
+      elif random.random() < 0.5:
+        img = img.transpose(Image.FLIP_TOP_BOTTOM)
+
       # rotate
       angle = random.randint(-90, 90)
       img = img.rotate(angle, resample=Image.BICUBIC)
@@ -133,7 +139,7 @@ class PlantLoader(object):
       img = img.crop(box)
 
       img = img.resize([self.input_size, self.input_size])
-      noise_factor = random.randint(1, 50)
+      noise_factor = random.randint(1, 20)
       noise = np.random.randint(-noise_factor, noise_factor,
         [self.input_size, self.input_size, 3])
       img = np.array(img, np.float32)
