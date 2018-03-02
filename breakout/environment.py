@@ -111,7 +111,10 @@ class SimpleEnvironment(object):
     if self.lives == 0:
       self.state = self.env.reset()
     # start the game
-    self.state, _, _, info = self.env.step(1)
+    self.state, _, done, info = self.env.step(1)
+    if done: self.env.reset()
+    self.state, _, done, info = self.env.step(2)
+    if done: self.env.reset()
     self.lives = info['ale.lives']
     return self.state
 
