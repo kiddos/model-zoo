@@ -2,6 +2,7 @@ import unittest
 import numpy as np
 import random
 import gym
+import time
 from collections import deque
 from PIL import Image
 
@@ -114,7 +115,7 @@ class TestReplayBuffer(unittest.TestCase):
     state = self.env.reset()
     self.replay_buffer.add_init_state(state)
     while True:
-      action = random.randint(0, 3)
+      action = self.env.sample_action()
       next_state, reward, done, info = self.env.step(action)
       self.replay_buffer.add(next_state, action, reward, done)
       state = next_state
@@ -182,7 +183,7 @@ class TestReplayBuffer(unittest.TestCase):
     state = self.env.reset()
     self.replay_buffer.add_init_state(state)
     while True:
-      action = random.randint(0, 3)
+      action = self.env.sample_action()
       next_state, reward, done, info = self.env.step(action)
 
       s = self.replay_buffer.process_image(state)

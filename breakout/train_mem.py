@@ -125,9 +125,9 @@ class Trainer(object):
     return self.replay_buffer.current_size >= FLAGS.init_replay_buffer_size
 
 
-def epsilon_greedy(trainer, sess, state, epsilon):
+def epsilon_greedy(trainer, sess, state, epsilon, env):
   if random.random() < epsilon:
-    return random.randint(0, 3)
+    return env.sample_action()
   else:
     action_prob = trainer.predict_action(sess, state)
     return np.argmax(action_prob)
@@ -160,7 +160,7 @@ def run_episode(env):
     state = env.reset()
     trainer.replay_buffer.add_init_state(state)
     while True:
-      action = random.randint(0, 3)
+      action = env.sample_action()
       next_state, reward, done, lives = env.step(action)
       trainer.replay_buffer.add(next_state, action, reward, done)
       state = next_state
@@ -198,7 +198,7 @@ def run_episode(env):
           trainer.update_target(sess)
 
         action = epsilon_greedy(trainer, sess,
-            trainer.replay_buffer.last_state(), epsilon)
+            trainer.replay_buffer.last_state(), epsilon, env)
         actions[action] += 1
         next_state, reward, done, lives = env.step(action)
         trainer.replay_buffer.add(next_state, action, reward, done)

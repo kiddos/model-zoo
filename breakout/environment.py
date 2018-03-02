@@ -104,8 +104,12 @@ class HistoryFrameEnvironment(object):
 class SimpleEnvironment(object):
   def __init__(self, name):
     self.env = gym.make(name)
+    self.env.seed(int(time.time()))
     self.action_size = self.env.action_space.n
     self.lives = 0
+
+  def sample_action(self):
+    return self.env.action_space.sample()
 
   def reset(self):
     if self.lives == 0:
