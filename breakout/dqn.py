@@ -65,9 +65,8 @@ class DQN(object):
       #    epsilon=config.eps)
       optimizer = tf.train.AdamOptimizer(self.learning_rate,
         epsilon=1e-3)
-      grads = optimizer.compute_gradients(self.loss)
-      grads = [(tf.clip_by_value(g, -1, 1), v) for g, v, in grads]
-      self.train_ops = optimizer.apply_gradients(grads)
+      grads, _ = tf.clip_by_global_norm(tf.gradients(self.loss, train_vars), 10.0)
+      self.train_ops = optimizer.apply_gradients(zip(grads, train_vars))
 
       tf.summary.scalar('learning_rate', self.learning_rate)
 
