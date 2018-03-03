@@ -79,7 +79,7 @@ class ReplayBuffer(object):
     for b in range(batch_size):
       index = random.randint(min_index, max_index)
 
-      while self.done[index - 1]:
+      while self._done[index - 1]:
         index = random.randint(min_index, max_index)
 
       state = np.copy(self.get_state(index - 1))
