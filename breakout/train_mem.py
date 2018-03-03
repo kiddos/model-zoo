@@ -156,15 +156,16 @@ def run_episode(env):
 
   # fill replay buffer
   logger.info('filling replay buffer...')
+  state = env.reset()
   while not trainer.ready():
-    state = env.reset()
-    trainer.replay_buffer.add_init_state(state)
     while True:
       action = env.sample_action()
       next_state, reward, done, lives = env.step(action)
-      trainer.replay_buffer.add(next_state, action, reward, done)
+      trainer.replay_buffer.add(state, action, reward, done)
       state = next_state
-      if done: break
+      if done:
+        env.reset()
+        break
   logger.info('replay buffer size: %d', trainer.replay_buffer.current_size)
 
   if FLAGS.saving:
@@ -186,9 +187,6 @@ def run_episode(env):
     epoch = 0
     actions = [0 for _ in range(env.action_size)]
     for episode in range(FLAGS.max_episodes + 1):
-      state = env.reset()
-      trainer.replay_buffer.add_init_state(state)
-
       epsilon = decay_epsilon(epoch, FLAGS.decay_to_epoch)
 
       step = 0
@@ -201,7 +199,7 @@ def run_episode(env):
             trainer.replay_buffer.last_state(), epsilon, env)
         actions[action] += 1
         next_state, reward, done, lives = env.step(action)
-        trainer.replay_buffer.add(next_state, action, reward, done)
+        trainer.replay_buffer.add(state, action, reward, done)
 
         step += 1
         total_reward += reward
@@ -213,6 +211,7 @@ def run_episode(env):
         if FLAGS.render == 'True':
           env.render()
         if done:
+          env.reset()
           total_rewards.append(total_reward)
 
           if total_reward > max_total_reward * 0.8 and FLAGS.saving:
