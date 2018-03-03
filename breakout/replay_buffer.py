@@ -79,11 +79,14 @@ class ReplayBuffer(object):
     for b in range(batch_size):
       index = random.randint(min_index, max_index)
 
+      while self.done[index - 1]:
+        index = random.randint(min_index, max_index)
+
       state = np.copy(self.get_state(index - 1))
-      action = self._action[index - 1]
+      action = self._action[index]
       next_state = np.copy(self.get_state(index))
-      over = self._done[index - 1]
-      reward = self._reward[index - 1]
+      over = self._done[index]
+      reward = self._reward[index]
 
       # padd zero
       game_over = self._done[(index - self.history_size):index]
@@ -118,10 +121,11 @@ class TestReplayBuffer(unittest.TestCase):
 
   def test_add_states(self):
     state = self.env.reset()
+    self.replay_buffer.add_init_state(state)
     while True:
       action = self.env.sample_action()
       next_state, reward, done, info = self.env.step(action)
-      self.replay_buffer.add(state, action, reward, done)
+      self.replay_buffer.add(next_state, action, reward, done)
       state = next_state
       if done: break
 
@@ -185,6 +189,7 @@ class TestReplayBuffer(unittest.TestCase):
       raise Exception
 
     state = self.env.reset()
+    self.replay_buffer.add_init_state(state)
     while True:
       action = self.env.sample_action()
       next_state, reward, done, info = self.env.step(action)
@@ -194,7 +199,7 @@ class TestReplayBuffer(unittest.TestCase):
       self.assertEqual(s.shape, (84, 84))
 
 
-      self.replay_buffer.add(state, action, reward, done)
+      self.replay_buffer.add(next_state, action, reward, done)
 
       display = np.zeros([84, 84 * 4, 1], np.uint8)
       last_state = self.replay_buffer.last_state()
