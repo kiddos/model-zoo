@@ -128,7 +128,7 @@ class Trainer(object):
 
 def epsilon_greedy(trainer, sess, state, epsilon, env):
   if random.random() < epsilon:
-    return env.sample_action()
+    return env.action_space.sample()
   else:
     action_prob = trainer.predict_action(sess, state)
     return np.argmax(action_prob)
@@ -160,7 +160,7 @@ def run_episode(env):
   state = env.reset()
   while not trainer.ready():
     while True:
-      action = env.sample_action()
+      action = env.action_space.sample()
       next_state, reward, done, lives = env.step(action)
       trainer.replay_buffer.add(state, action, reward, done)
       state = next_state
