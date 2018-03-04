@@ -91,26 +91,29 @@ class DQN(object):
       for i in range(4):
         tf.summary.image('input_images_%d' % i, images[i])
 
+    def act(inputs):
+      return tf.nn.leaky_relu(inputs, alpha=0.01)
+
     initializer = tf.variance_scaling_initializer()
     with tf.name_scope('conv1'):
       conv = tf.contrib.layers.conv2d(inputs, 32, stride=4, kernel_size=8,
-        activation_fn=tf.nn.leaky_relu, trainable=trainable, padding='SAME',
+        activation_fn=act, trainable=trainable, padding='SAME',
         weights_initializer=initializer)
 
     with tf.name_scope('conv2'):
       conv = tf.contrib.layers.conv2d(conv, 64, stride=2, kernel_size=4,
-        activation_fn=tf.nn.leaky_relu, trainable=trainable, padding='SAME',
+        activation_fn=act, trainable=trainable, padding='SAME',
         weights_initializer=initializer)
 
     with tf.name_scope('conv3'):
       conv = tf.contrib.layers.conv2d(conv, 64, stride=1, kernel_size=3,
-        activation_fn=tf.nn.leaky_relu, trainable=trainable, padding='SAME',
+        activation_fn=act, trainable=trainable, padding='SAME',
         weights_initializer=initializer)
 
     with tf.name_scope('fully_connected'):
       flatten = tf.contrib.layers.flatten(conv)
       fc = tf.contrib.layers.fully_connected(flatten, 512, trainable=trainable,
-        activation_fn=tf.nn.leaky_relu, weights_initializer=initializer)
+        activation_fn=act, weights_initializer=initializer)
 
     with tf.name_scope('output'):
       w = tf.get_variable('ow', shape=[512, self.config.action_size],
