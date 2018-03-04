@@ -11,7 +11,7 @@ from PIL import Image
 from collections import deque
 from argparse import ArgumentParser
 
-from environment import SimpleEnvironment
+from environment import get_training_env
 from replay_buffer import ReplayBuffer
 from dqn import DQN, DQNConfig
 
@@ -159,14 +159,13 @@ def run_episode(env):
   logger.info('filling replay buffer...')
   state = env.reset()
   while not trainer.ready():
-    state = env.reset()
-    trainer.replay_buffer.add_init_state(state)
     while True:
       action = env.sample_action()
       next_state, reward, done, lives = env.step(action)
-      trainer.replay_buffer.add(next_state, action, reward, done)
+      trainer.replay_buffer.add(state, action, reward, done)
       state = next_state
       if done:
+        env.reset()
         break
   logger.info('replay buffer size: %d', trainer.replay_buffer.current_size)
 
@@ -183,15 +182,12 @@ def run_episode(env):
     sess.run(tf.global_variables_initializer())
     trainer.update_target(sess)
 
-    total_rewards = deque(maxlen=100)
+    total_rewards = deque(maxlen=200)
 
     max_total_reward = 0
     epoch = 0
     actions = [0 for _ in range(env.action_size)]
     for episode in range(FLAGS.max_episodes + 1):
-
-      state = env.reset()
-      trainer.replay_buffer.add_init_state(state)
       epsilon = decay_epsilon(epoch, FLAGS.decay_to_epoch)
 
       step = 0
@@ -200,22 +196,27 @@ def run_episode(env):
         if epoch % FLAGS.update_frequency == 0:
           trainer.update_target(sess)
 
-        action = epsilon_greedy(trainer, sess,
-            trainer.replay_buffer.last_state(), epsilon, env)
+        recent_states = trainer.replay_buffer.recent_state(state)
+
+        action = epsilon_greedy(trainer, sess, recent_states, epsilon, env)
         actions[action] += 1
         next_state, reward, done, lives = env.step(action)
-        trainer.replay_buffer.add(next_state, action, reward, done)
+
+        trainer.replay_buffer.add(state, action, reward, done)
+        state = next_state
 
         step += 1
         total_reward += reward
-        state = next_state
 
         trainer.train(sess)
         epoch += 1
 
         if FLAGS.render == 'True':
           env.render()
+
         if done:
+          env.reset()
+
           total_rewards.append(total_reward)
 
           if total_reward > max_total_reward * 0.8 and FLAGS.saving:
@@ -253,9 +254,8 @@ def run_episode(env):
 
 
 def main(_):
-  #  env = HistoryFrameEnvironment(FLAGS.environment,
-  #    FLAGS.history_length, FLAGS.image_width, FLAGS.image_height)
-  env = SimpleEnvironment(FLAGS.environment)
+  env = get_training_env(FLAGS.environment, FLAGS.image_width,
+    FLAGS.image_height)
   run_episode(env)
 
 

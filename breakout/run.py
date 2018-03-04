@@ -5,7 +5,7 @@ import logging
 import gym
 import time
 
-from environment import HistoryFrameEnvironment
+from environment import get_test_env
 
 
 logging.basicConfig()
@@ -33,8 +33,10 @@ def load_graph():
 
 
 def main(_):
-  env = HistoryFrameEnvironment('BreakoutDeterministic-v0', 4, 84, 84,
-    FLAGS.record, '/tmp/breakout-record')
+  env = get_test_env('BreakoutDeterministic-v0', 84, 84, 4)
+  if FLAGS.record:
+    env = gym.wrappers.Monitor(env, '/tmp/breakout-record',
+        video_callable=lambda episode_id: True)
 
   graph = load_graph()
   input_state = graph.get_tensor_by_name('import/state:0')

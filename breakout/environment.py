@@ -4,133 +4,103 @@ from random import randint
 from PIL import Image
 from collections import deque
 import time
-import cv2
 import unittest
+
+
+class EpisodicLifeEnv(gym.Wrapper):
+  def __init__(self, env):
+    gym.Wrapper.__init__(self, env)
+    self.lives = 0
+    self.was_real_done = True
+
+  def step(self, action):
+    state, reward, done, info = self.env.step(action)
+    lives = info['ale.lives']
+    if lives < self.lives:
+      done = True
+    self.lives = lives
+    return state, reward, done, info
+
+  def reset(self):
+    if self.lives == 0:
+      state = self.env.reset()
+    else:
+      state, _, _, info = self.env.step(0)
+      self.lives = info['ale.lives']
+    return state
+
+
+class FireResetEnv(gym.Wrapper):
+  def __init__(self, env):
+    gym.Wrapper.__init__(self, env)
+    assert env.unwrapped.get_action_meanings()[1] == 'FIRE'
+    assert len(env.unwrapped.get_action_meanings()) >= 3
+
+  def reset(self):
+    self.env.reset()
+    state, _, done, _ = self.env.step(1)
+    if done: self.env.reset()
+    state, _, done, _ = self.env.step(2)
+    if done: self.env.reset()
+    return state
+
+  def step(self, action):
+    return self.env.step(action)
 
 
 def process_image(state, input_width, input_height):
   image = Image.fromarray(state).crop([8, 32, 152, 210])
-  #  image = image.resize([68, 65]).convert('L')
-  image = image.resize([input_width, input_height],
-    Image.NEAREST).convert('L')
-  img = np.expand_dims(np.array(image, dtype=np.uint8), axis=2)
+  image = image.resize([input_width, input_height], Image.NEAREST).convert('L')
+  img = np.array(image, dtype=np.uint8)
   return img
 
 
-class SkipFrameEnvironment(object):
-  def __init__(self, name, skip, image_width, image_height):
-    self.skip = skip
-    self.image_width = image_width
-    self.image_height = image_height
-    self.env = gym.make(name)
-    self.action_size = self.env.action_space.n
-    self.states = []
-    self.lives = 0
+class MapState(gym.ObservationWrapper):
+  def __init__(self, env, w, h):
+    gym.ObservationWrapper.__init__(self, env)
+    self.w, self.h = w, h
+    self.observation_space = gym.spaces.Box(
+      low=0, high=255, shape=(self.h, self.w), dtype=np.uint8)
 
-  def reset(self):
-    states = deque(maxlen=self.skip)
-    if self.lives == 0:
-      state = self.env.reset()
-      states.append(process_image(state, self.image_width, self.image_height))
-
-    end = False
-    noop = 0
-    while len(states) < self.skip:
-      state, _, done, info = self.env.step(noop)
-      states.append(process_image(state, self.image_width, self.image_height))
-      end |= done
-      self.lives = info['ale.lives']
-    return np.concatenate(states, axis=2)
-
-  def step(self, action):
-    states = deque(maxlen=self.skip)
-    R = 0
-    end = False
-    for i in range(self.skip):
-      state, reward, done, info = self.env.step(action)
-      states.append(process_image(state, self.image_width, self.image_height))
-      R += reward
-      end |= done
-
-      if info['ale.lives'] < self.lives:
-        end |= True
-      self.lives = info['ale.lives']
-    return np.concatenate(states, axis=2), R, end, info['ale.lives']
-
-  def render(self):
-    self.env.render()
+  def observation(self, obs):
+    return process_image(obs, self.w, self.h)
 
 
-class HistoryFrameEnvironment(object):
-  def __init__(self, name, history_size, image_width, image_height,
-      record=False, directory=None):
+def get_training_env(name, w, h):
+  env = gym.make(name)
+  env.seed((int(time.time())))
+  env = EpisodicLifeEnv(env)
+  env = FireResetEnv(env)
+  env = MapState(env, w, h)
+  return env
+
+
+class HistoryStatesEnv(gym.Wrapper):
+  def __init__(self, env, history_size):
+    gym.Wrapper.__init__(self, env)
     self.history = deque(maxlen=history_size)
-    self.image_width = image_width
-    self.image_height = image_height
-    self.env = gym.make(name)
-    self.action_size = self.env.action_space.n
-    self.lives = 0
-    self.history_size = history_size
-
-    if record:
-      self.env = gym.wrappers.Monitor(self.env, directory,
-        video_callable=lambda episode_id: True)
 
   def reset(self):
-    if self.lives == 0:
-      self.state = self.env.reset()
-      # start the game
-    self.state, _, _, info = self.env.step(1)
-    self.lives = info['ale.lives']
-    self.state = process_image(self.state, self.image_width, self.image_height)
+    state = self.env.reset()
+    empty = np.zeros(self.observation_space.shape, np.uint8)
+    for _ in range(self.history.maxlen - 1):
+      self.history.append(empty)
+    self.history.append(state)
+    return self._history()
 
-    for _ in range(self.history_size):
-      self.history.append(self.state)
-    return np.concatenate(self.history, axis=2)
-
-  def step(self, action):
-    self.state, reward, done, info = self.env.step(action)
-    self.state = process_image(self.state, self.image_width, self.image_height)
-    self.history.append(self.state)
-    if info['ale.lives'] < self.lives:
-      done = True
-    self.lives = info['ale.lives']
-    return np.concatenate(self.history, axis=2), reward, done, self.lives
-
-  def render(self):
-    self.env.render()
-
-
-class SimpleEnvironment(object):
-  def __init__(self, name):
-    self.env = gym.make(name)
-    self.env.seed(int(time.time()))
-    self.action_size = self.env.action_space.n
-    self.lives = 0
-
-  def sample_action(self):
-    return self.env.action_space.sample()
-
-  def reset(self):
-    if self.lives == 0:
-      self.state = self.env.reset()
-    # start the game
-    self.state, _, done, info = self.env.step(1)
-    if done: self.env.reset()
-    self.state, _, done, info = self.env.step(2)
-    if done: self.env.reset()
-    self.lives = info['ale.lives']
-    return self.state
+  def _history(self):
+    return np.stack(self.history, axis=2)
 
   def step(self, action):
-    self.state, reward, done, info = self.env.step(action)
-    if info['ale.lives'] < self.lives:
-      done = True
-    self.lives = info['ale.lives']
-    return self.state, reward, done, info['ale.lives']
+    state, reward, done, info = self.env.step(action)
+    self.history.append(state)
+    return self._history(), reward, done, info
 
-  def render(self):
-    self.env.render()
+
+def get_test_env(name, w, h, history_size):
+  env = get_training_env(name, w, h)
+  env = HistoryStatesEnv(env, history_size)
+  return env
 
 
 class TestEnvironment(unittest.TestCase):
@@ -138,11 +108,40 @@ class TestEnvironment(unittest.TestCase):
     self.run_count = 100
     self.render = True
 
-  def test_skipframe_env(self):
-    env = SkipFrameEnvironment('BreakoutNoFrameskip-v0', 4, 84, 84)
+  #  def test_training_env(self):
+  #    env = get_training_env('BreakoutDeterministic-v0', 84, 84)
 
+  #    for i in range(self.run_count):
+  #      state = env.reset()
+
+  #      self.assertEqual(state.shape[0], 84)
+  #      self.assertEqual(state.shape[1], 84)
+  #      steps = 0
+
+  #      total_reward = 0
+  #      while True:
+  #        action = randint(0, 3)
+  #        next_state, reward, done, lives = env.step(action)
+
+  #        self.assertEqual(next_state.shape[0], 84)
+  #        self.assertEqual(next_state.shape[1], 84)
+
+  #        steps += 1
+  #        total_reward += reward
+
+  #        if self.render:
+  #          env.render()
+
+  #        if done:
+  #          break
+
+  def test_test_env(self):
+    env = get_test_env('BreakoutDeterministic-v0', 84, 84, 4)
     for i in range(self.run_count):
       state = env.reset()
+
+      self.assertEqual(state.shape[0], 84)
+      self.assertEqual(state.shape[1], 84)
       self.assertEqual(state.shape[2], 4)
       steps = 0
 
@@ -151,75 +150,16 @@ class TestEnvironment(unittest.TestCase):
         action = randint(0, 3)
         next_state, reward, done, lives = env.step(action)
 
-        self.assertEqual(state.shape[2], 4)
+        self.assertEqual(next_state.shape[0], 84)
+        self.assertEqual(next_state.shape[1], 84)
+        self.assertEqual(next_state.shape[2], 4)
 
         steps += 1
         total_reward += reward
-
-        if self.render:
-          env.render()
-
-        if done:
-          break
-
-  def test_history_env(self):
-    env = HistoryFrameEnvironment('BreakoutDeterministic-v0', 4, 84, 84)
-
-    for i in range(self.run_count):
-      state = env.reset()
-      self.assertEqual(state.shape[2], 4)
-      steps = 0
-
-      total_reward = 0
-      while True:
-        action = randint(0, 3)
-        next_state, reward, done, lives = env.step(action)
-
-        self.assertEqual(state.shape[2], 4)
-
-        steps += 1
-        total_reward += reward
-
-        eq = np.equal(next_state[:, :, 0:3], state[:, :, 1:]).all()
-        self.assertTrue(eq)
-
         state = next_state
 
         if self.render:
           env.render()
-
-        if done:
-          break
-
-  def test_simple_env(self):
-    env = SimpleEnvironment('BreakoutDeterministic-v0')
-
-    for i in range(self.run_count):
-      state = env.reset()
-      env.step(1)
-
-      self.assertEqual(state.shape[0], 210)
-      self.assertEqual(state.shape[1], 160)
-      self.assertEqual(state.shape[2], 3)
-      steps = 0
-
-      total_reward = 0
-      while True:
-        #  action = randint(0, 3)
-        action = 0
-        next_state, reward, done, lives = env.step(action)
-
-        self.assertEqual(next_state.shape[0], 210)
-        self.assertEqual(next_state.shape[1], 160)
-        self.assertEqual(next_state.shape[2], 3)
-
-        steps += 1
-        total_reward += reward
-
-        if self.render:
-          env.render()
-
-        #  time.sleep(0.1)
 
         if done:
           break
