@@ -36,7 +36,6 @@ class ReplayBuffer(object):
     self._current_size = min(self._current_size + 1, self.size)
 
     if done:
-      print('clear')
       self.history.clear()
     else:
       self.history.append(state)
