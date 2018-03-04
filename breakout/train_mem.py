@@ -186,7 +186,7 @@ def run_episode(env):
 
     max_total_reward = 0
     epoch = 0
-    actions = [0 for _ in range(env.action_size)]
+    actions = [0 for _ in range(env.action_space.n)]
     for episode in range(FLAGS.max_episodes + 1):
       epsilon = decay_epsilon(epoch, FLAGS.decay_to_epoch)
 
