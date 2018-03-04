@@ -236,7 +236,7 @@ def run_episode(env):
             logger.info('ave: %f, max: %f',
                 sum(total_rewards) / len(total_rewards), max(total_rewards))
             logger.info('actions: %s', str(actions))
-            actions = [0 for _ in range(env.action_size)]
+            actions = [0 for _ in range(env.action_space.n)]
 
           if FLAGS.saving and \
               episode % FLAGS.summary_episode == 0:
