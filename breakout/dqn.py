@@ -1,5 +1,6 @@
 import tensorflow as tf
 import numpy as np
+import unittest
 
 
 class DQNConfig(object):
@@ -41,16 +42,16 @@ class DQN(object):
         assert train_vars[i] in tf.trainable_variables()
 
     with tf.name_scope('loss'):
-      target = tf.clip_by_value(self.reward, -1, 1) + \
+      self.target = tf.clip_by_value(self.reward, -1, 1) + \
         config.gamma * \
         tf.cast(tf.logical_not(self.done), tf.float32) * \
         tf.stop_gradient(tf.reduce_max(self.next_q_values, axis=1))
 
       action_mask = tf.one_hot(self.action,
         config.action_size, name='action_mask')
-      y = tf.reduce_sum(action_mask * self.q_values, axis=1, name='y')
+      self.y = tf.reduce_sum(action_mask * self.q_values, axis=1, name='y')
 
-      self.loss = tf.losses.huber_loss(target, y,
+      self.loss = tf.losses.huber_loss(self.target, self.y,
         reduction=tf.losses.Reduction.MEAN)
 
       tf.summary.scalar('loss', self.loss)
@@ -58,15 +59,16 @@ class DQN(object):
     with tf.name_scope('optimization'):
       self.learning_rate = tf.Variable(config.learning_rate,
         trainable=False, name='learning_rate')
-      #  optimizer = tf.train.RMSPropOptimizer(
-      #    self.learning_rate,
-      #    decay=config.decay,
-      #    momentum=config.momentum,
-      #    epsilon=config.eps)
-      optimizer = tf.train.AdamOptimizer(self.learning_rate,
-        epsilon=1e-3)
-      grads, _ = tf.clip_by_global_norm(tf.gradients(self.loss, train_vars), 10.0)
-      self.train_ops = optimizer.apply_gradients(zip(grads, train_vars))
+      optimizer = tf.train.RMSPropOptimizer(
+        self.learning_rate,
+        decay=config.decay,
+        momentum=config.momentum,
+        epsilon=config.eps)
+      #  optimizer = tf.train.AdamOptimizer(self.learning_rate,
+      #    epsilon=1e-3)
+      #  grads, _ = tf.clip_by_global_norm(tf.gradients(self.loss, train_vars), 10.0)
+      #  self.train_ops = optimizer.apply_gradients(zip(grads, train_vars))
+      self.train_ops = optimizer.minimize(self.loss)
 
       tf.summary.scalar('learning_rate', self.learning_rate)
 
@@ -126,32 +128,84 @@ class DQN(object):
     return outputs
 
 
+class TestDQN(unittest.TestCase):
+  @classmethod
+  def setUpClass(cls):
+    config = DQNConfig()
+    cls.dqn = DQN(config, False)
+
+    config = tf.ConfigProto()
+    config.gpu_options.allow_growth = True
+    cls.sess = tf.Session(config=config)
+
+    cls.sess.run(tf.global_variables_initializer())
+
+  @classmethod
+  def tearDownClass(cls):
+    cls.sess.close()
+
+  def test_run(self):
+    state = np.random.uniform(0, 255, [1, 84, 84, 4])
+    q, nq = self.sess.run([self.dqn.q_values, self.dqn.next_q_values],
+      feed_dict={
+        self.dqn.state: state,
+        self.dqn.next_state: state,
+      })
+    self.assertFalse((q == nq).any())
+    self.sess.run(self.dqn.copy_ops)
+
+    state = np.random.uniform(0, 255, [1, 84, 84, 4])
+    q, nq = self.sess.run([self.dqn.q_values, self.dqn.next_q_values],
+      feed_dict={
+        self.dqn.state: state,
+        self.dqn.next_state: state,
+      })
+    self.assertTrue((q == nq).all())
+    self.sess.run(self.dqn.copy_ops)
+
+
+  def test_y(self):
+    state = np.random.uniform(0, 255, [1, 84, 84, 4])
+    q = self.sess.run(self.dqn.q_values, feed_dict={
+      self.dqn.state: state,
+    })[0, :]
+
+    y = self.sess.run(self.dqn.y, feed_dict={
+      self.dqn.state: state,
+      self.dqn.action: np.array([1]),
+    })[0]
+    self.assertEqual(y, q[1])
+
+  def test_target(self):
+    next_state = np.random.uniform(0, 255, [1, 84, 84, 4])
+    next_q = self.sess.run(self.dqn.next_q_values, feed_dict={
+      self.dqn.next_state: next_state,
+    })[0, :]
+
+    target = self.sess.run(self.dqn.target, feed_dict={
+      self.dqn.next_state: next_state,
+      self.dqn.reward: np.array([2.0]),
+      self.dqn.done: np.array([False])
+    })[0]
+    self.assertAlmostEqual(target, 1.0 + 0.99 * np.max(next_q), delta=1e-4)
+
+    target = self.sess.run(self.dqn.target, feed_dict={
+      self.dqn.next_state: next_state,
+      self.dqn.reward: np.array([1.0]),
+      self.dqn.done: np.array([True])
+    })[0]
+    self.assertAlmostEqual(target, 1.0, delta=1e-4)
+
+    target = self.sess.run(self.dqn.target, feed_dict={
+      self.dqn.next_state: next_state,
+      self.dqn.reward: np.array([0.0]),
+      self.dqn.done: np.array([False])
+    })[0]
+    self.assertAlmostEqual(target, 0.99 * np.max(next_q), delta=1e-4)
+
+
 def main():
-  config = DQNConfig()
-  dqn = DQN(config, False)
-
-  config = tf.ConfigProto()
-  config.gpu_options.allow_growth = True
-  with tf.Session(config=config) as sess:
-    sess.run(tf.global_variables_initializer())
-
-    state = np.random.uniform(0, 255, [1, 84, 84, 4])
-    print(state.shape)
-    q, nq = sess.run([dqn.q_values, dqn.next_q_values], feed_dict={
-      dqn.state: state,
-      dqn.next_state: state,
-    })
-    print(q)
-    print(nq)
-    sess.run(dqn.copy_ops)
-
-    state = np.random.uniform(0, 255, [1, 84, 84, 4])
-    q, nq = sess.run([dqn.q_values, dqn.next_q_values], feed_dict={
-      dqn.state: state,
-      dqn.next_state: state,
-    })
-    print(q)
-    print(nq)
+  unittest.main()
 
 
 if __name__ == '__main__':
