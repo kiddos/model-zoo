@@ -49,6 +49,14 @@ class PlantLoader(object):
         'valid_label': valid_label,
       }, f)
 
+  def _preprocess_images(self, data):
+    processed = []
+    for i in range(len(data)):
+      img = Image.fromarray(data[i, ...])
+      img = img.resize([self.input_size, self.input_size])
+      processed.append(np.array(img, np.uint8))
+    return np.array(processed)
+
   def load_data(self):
     if not hasattr(self, 'connection'):
       logger.warning('db not found')
@@ -173,12 +181,7 @@ class PlantLoader(object):
     return self.training_label
 
   def get_validation_data(self):
-    data = []
-    for i in range(len(self.validation_data)):
-      img = Image.fromarray(self.validation_data[i, ...])
-      img = img.resize([self.input_size, self.input_size])
-      data.append(np.array(img, np.uint8))
-    return np.array(data)
+    return self._preprocess_images(self.validation_data)
 
   def get_validation_labels(self):
     return self.validation_label
@@ -187,7 +190,7 @@ class PlantLoader(object):
     return self.test_files
 
   def get_test_images(self):
-    return self.test_images
+    return self._preprocess_images(self.test_images)
 
 
 class TestPlantLoader(unittest.TestCase):
@@ -282,6 +285,26 @@ class TestPlantLoader(unittest.TestCase):
     cv2.imshow('Validation data', cv2.cvtColor(display, cv2.COLOR_RGB2BGR))
     cv2.waitKey(0)
 
+  def test_test_data(self):
+    try:
+      import cv2
+    except:
+      raise Exception
+
+    display = np.zeros(shape=[512, 512, 3], dtype=np.uint8)
+    test_data = self.loader.get_test_images()
+
+    index = np.random.permutation(np.arange(len(test_data)))[:64]
+    test_data = test_data[index, ...]
+
+    for i in range(len(test_data)):
+      r = i % 8
+      c = i / 8
+      display[(r * 64):((r + 1) * 64), (c * 64):((c + 1) * 64), :] = \
+        test_data[i, ...]
+
+    cv2.imshow('Test data', cv2.cvtColor(display, cv2.COLOR_RGB2BGR))
+    cv2.waitKey(0)
 
 
 if __name__ == '__main__':
