@@ -3,34 +3,31 @@ import numpy as np
 import random
 import coloredlogs
 import logging
-import threading
 import signal
+import sys
 import os
-from PIL import Image
-from collections import deque
-from argparse import ArgumentParser
 
-from environment import HistoryFrameEnvironment
+from experience_replay import ExperienceReplay
 from dqn import DQN, DQNConfig
-
 
 FLAGS = tf.app.flags.FLAGS
 tf.app.flags.DEFINE_boolean('saving', False, 'saving model')
-tf.app.flags.DEFINE_boolean('render', False, 'render environment')
-tf.app.flags.DEFINE_string('environment', 'BreakoutDeterministic-v0',
-  'openai gym environment to run')
+tf.app.flags.DEFINE_integer('display_epoch', 200, 'display result per episode')
+tf.app.flags.DEFINE_integer('save_epoch', 30000, 'save model per episode')
+tf.app.flags.DEFINE_integer('summary_epoch', 10, 'save summary per episode')
 
 # hyperparameters
-tf.app.flags.DEFINE_integer('init_replay_buffer_size', 50000,
+tf.app.flags.DEFINE_integer('init_replay_buffer_size', 10000,
   'replay buffer starting size')
-tf.app.flags.DEFINE_integer('replay_buffer_size', 300000,
+tf.app.flags.DEFINE_integer('replay_buffer_size', 1000000,
   'replay buffer max size')
-tf.app.flags.DEFINE_integer('max_episodes', 600000,
+tf.app.flags.DEFINE_integer('max_epoches', 5000000,
   'number of episodes to run')
 tf.app.flags.DEFINE_integer('update_frequency', 10000,
   'update target network per episode')
 tf.app.flags.DEFINE_integer('decay_to_epoch', 1000000,
   'decay epsilon until epoch')
+tf.app.flags.DEFINE_float('start_epsilon', 1.0, 'min epsilon to decay to')
 tf.app.flags.DEFINE_float('min_epsilon', 0.1, 'min epsilon to decay to')
 tf.app.flags.DEFINE_float('gamma', 0.99, 'discount factor')
 tf.app.flags.DEFINE_float('learning_rate', 0.00025, 'learning rate to train')
@@ -45,10 +42,6 @@ tf.app.flags.DEFINE_bool('use_huber', True, 'use huber loss')
 tf.app.flags.DEFINE_integer('skip', 4, 'skip frame')
 tf.app.flags.DEFINE_integer('history_length', 4, 'history length')
 
-tf.app.flags.DEFINE_integer('display_episode', 1, 'display result per episode')
-tf.app.flags.DEFINE_integer('save_episode', 5000, 'save model per episode')
-tf.app.flags.DEFINE_integer('summary_episode', 10, 'save summary per episode')
-
 
 coloredlogs.install()
 logging.basicConfig()
@@ -56,9 +49,20 @@ logger = logging.getLogger('breakout')
 logger.setLevel(logging.INFO)
 
 
+def prepare_folder():
+  index = 0
+  folder = os.path.join('/tmp', 'breakout_%d' % index)
+  while os.path.isdir(folder):
+    index += 1
+    folder = os.path.join('/tmp', 'breakout_%d' % index)
+  return folder
+
+
 class Trainer(object):
   def __init__(self):
-    self.replay_buffer = deque(maxlen=FLAGS.replay_buffer_size)
+    self.experience_replay = ExperienceReplay('BreakoutDeterministic-v0',
+      FLAGS.replay_buffer_size,
+      84, 84, 4, self.policy, FLAGS.decay_to_epoch)
 
     config = DQNConfig()
     config.learning_rate = FLAGS.learning_rate
@@ -71,19 +75,23 @@ class Trainer(object):
     config.skip = FLAGS.skip
     self.dqn = DQN(config, FLAGS.use_huber)
 
-  def get_batch(self, batch_size):
-    batch = random.sample(self.replay_buffer, batch_size)
-    state_batch = np.array([b[0] for b in batch])
-    action_batch = np.array([b[1] for b in batch])
-    next_state_batch = np.array([b[2] for b in batch])
-    reward_batch = np.array([b[3] for b in batch])
-    done_batch = np.array([b[4] for b in batch])
-    return state_batch, action_batch, next_state_batch, reward_batch, done_batch
+    config = tf.ConfigProto()
+    config.gpu_options.allow_growth = True
+    self.sess = tf.Session(config=config)
+    logger.info('initializing variables...')
+    self.sess.run(tf.global_variables_initializer())
+    self.update_target()
 
-  def train(self, sess):
-    state_batch, action_batch, next_state_batch, \
-      reward_batch, done_batch = self.get_batch(FLAGS.batch_size)
-    sess.run(self.dqn.train_ops, feed_dict={
+    self.epoch = 0
+    self.decay_epsilon()
+
+  def __del__(self):
+    self.sess.close()
+
+  def train_step(self):
+    state_batch, action_batch, next_state_batch, reward_batch, done_batch = \
+      self.experience_replay.replay_buffer.sample(FLAGS.batch_size)
+    self.sess.run(self.dqn.train_ops, feed_dict={
       self.dqn.state: state_batch,
       self.dqn.action: action_batch,
       self.dqn.next_state: next_state_batch,
@@ -91,21 +99,70 @@ class Trainer(object):
       self.dqn.done: done_batch,
     })
 
-  def update_target(self, sess):
-    sess.run(self.dqn.copy_ops)
+  def train(self):
+    if FLAGS.saving:
+      folder = prepare_folder()
+      saver = tf.train.Saver(max_to_keep=30)
+      summary_writer = tf.summary.FileWriter(os.path.join(folder, 'summary'),
+        tf.get_default_graph())
 
-  def add_step(self, step):
-    self.replay_buffer.append(step)
+    def handle_interrupt(sig, frame):
+      self.experience_replay.stop()
+      logger.info('saving last...')
+      saver.save(self.sess, os.path.join(folder, 'breakout'),
+        global_step=self.epoch)
+      sys.exit()
 
-  def predict_action(self, sess, state):
-    return sess.run(self.dqn.q_values, feed_dict={
+    signal.signal(signal.SIGINT, handle_interrupt)
+
+    logger.info('adding replay buffer with epsilon: %f', self.epsilon)
+    self.experience_replay.init_replay_buffer(FLAGS.init_replay_buffer_size)
+    logger.info('replay buffer size: %d',
+      self.experience_replay.replay_buffer.current_size)
+
+    self.experience_replay.start()
+
+    for self.epoch in range(FLAGS.max_epoches + 1):
+      if self.epoch % FLAGS.update_frequency == 0:
+        self.update_target()
+
+      self.train_step()
+      self.decay_epsilon()
+      self.experience_replay.set_epsilon(self.epsilon)
+
+      if self.epoch % FLAGS.display_epoch == 0:
+        loss = self.compute_loss()
+        ave_q = self.compute_average_q_values()
+
+        logger.info('%d. eps: %f, ave: %f, max R: %f, Q: %f, loss: %f',
+          self.epoch, self.epsilon,
+          self.experience_replay.average_reward,
+          self.experience_replay.max_reward,
+          ave_q, loss)
+
+      if FLAGS.saving and self.epoch % FLAGS.save_epoch == 0:
+        saver.save(self.sess, os.path.join(folder, 'breakout'),
+          global_step=self.epoch)
+
+      if FLAGS.saving and self.epoch % FLAGS.summary_epoch == 0:
+        summary = self.get_summary()
+        summary_writer.add_summary(summary, global_step=self.epoch)
+
+    self.experience_replay.stop()
+
+  def update_target(self):
+    self.sess.run(self.dqn.copy_ops)
+
+  def policy(self, state):
+    action_prob = self.sess.run(self.dqn.q_values, feed_dict={
       self.dqn.state: np.expand_dims(state, axis=0)
-    })[0]
+    })
+    return np.argmax(action_prob[0, :])
 
-  def compute_loss(self, sess):
-    state_batch, action_batch, next_state_batch, \
-        reward_batch, done_batch = self.get_batch(FLAGS.batch_size)
-    return sess.run(self.dqn.loss, feed_dict={
+  def compute_loss(self):
+    state_batch, action_batch, next_state_batch, reward_batch, done_batch = \
+      self.experience_replay.replay_buffer.sample(FLAGS.batch_size)
+    return self.sess.run(self.dqn.loss, feed_dict={
       self.dqn.state: state_batch,
       self.dqn.next_state: next_state_batch,
       self.dqn.action: action_batch,
@@ -113,17 +170,18 @@ class Trainer(object):
       self.dqn.done: done_batch,
     })
 
-  def ave_q_values(self, sess):
-    state_batch, action_batch, next_state_batch, \
-        reward_batch, done_batch = self.get_batch(FLAGS.batch_size)
-    return np.mean(sess.run(self.dqn.q_values, feed_dict={
+  def compute_average_q_values(self):
+    state_batch, action_batch, next_state_batch, reward_batch, done_batch = \
+      self.experience_replay.replay_buffer.sample(FLAGS.batch_size)
+    q = self.sess.run(self.dqn.q_values, feed_dict={
       self.dqn.state: state_batch,
-    }))
+    })
+    return np.mean(np.max(q, axis=1))
 
-  def get_summary(self, sess):
-    state_batch, action_batch, next_state_batch, \
-        reward_batch, done_batch = self.get_batch(FLAGS.batch_size)
-    return sess.run(self.dqn.summary, feed_dict={
+  def get_summary(self):
+    state_batch, action_batch, next_state_batch, reward_batch, done_batch = \
+      self.experience_replay.replay_buffer.sample(FLAGS.batch_size)
+    return self.sess.run(self.dqn.summary, feed_dict={
       self.dqn.state: state_batch,
       self.dqn.next_state: next_state_batch,
       self.dqn.action: action_batch,
@@ -132,137 +190,19 @@ class Trainer(object):
     })
 
   def ready(self):
-    return len(self.replay_buffer) >= FLAGS.init_replay_buffer_size
+    return self.experience_replay.replay_buffer.current_size >= \
+      FLAGS.init_replay_buffer_size
 
-
-def epsilon_greedy(trainer, sess, state, epsilon):
-  if random.random() < epsilon:
-    return random.randint(0, 3)
-  else:
-    action_prob = trainer.predict_action(sess, state)
-    return np.argmax(action_prob)
-
-
-def decay_epsilon(epoch, to):
-  #  factor = to / -np.log(FLAGS.min_epsilon)
-  #  epsilon = np.exp(-epoch / factor)
-  #  if epsilon < FLAGS.min_epsilon: epsilon = FLAGS.min_epsilon
-  epsilon = 1.0 - (1.0 - FLAGS.min_epsilon) * epoch / to
-  if epsilon < FLAGS.min_epsilon: epsilon = FLAGS.min_epsilon
-  return epsilon
-
-
-def prepare_folder():
-  index = 0
-  folder = os.path.join('/tmp', 'breakout_%d' % index)
-  while os.path.isdir(folder):
-    index += 1
-    folder = os.path.join('/tmp', 'breakout_%d' % index)
-  return folder
-
-
-def run_episode(env):
-  trainer = Trainer()
-
-  # fill replay buffer
-  logger.info('filling replay buffer...')
-  while not trainer.ready():
-    state = env.reset()
-    while True:
-      action = random.randint(0, 3)
-      next_state, reward, done, lives = env.step(action)
-      trainer.add_step([state, np.array(action, np.int16),
-        next_state, np.sign(reward), done])
-      state = next_state
-      if done: break
-  logger.info('replay buffer size: %d', len(trainer.replay_buffer))
-
-  if FLAGS.saving:
-    folder = prepare_folder()
-    saver = tf.train.Saver(max_to_keep=30)
-    summary_writer = tf.summary.FileWriter(os.path.join(folder, 'summary'),
-      tf.get_default_graph())
-
-  config = tf.ConfigProto()
-  config.gpu_options.allow_growth = True
-  with tf.Session(config=config) as sess:
-    logger.info('initializing variables')
-    sess.run(tf.global_variables_initializer())
-    trainer.update_target(sess)
-
-    total_rewards = deque(maxlen=100)
-    max_total_reward = 0
-    epoch = 0
-    actions = [0 for _ in range(env.action_size)]
-    for episode in range(FLAGS.max_episodes + 1):
-      state = env.reset()
-
-      epsilon = decay_epsilon(epoch, FLAGS.decay_to_epoch)
-
-      step = 0
-      total_reward = 0
-      while True:
-        if epoch % FLAGS.update_frequency == 0:
-          trainer.update_target(sess)
-
-        action = epsilon_greedy(trainer, sess, state, epsilon)
-        actions[action] += 1
-        next_state, reward, done, lives = env.step(action)
-        trainer.add_step([state, np.array(action, np.int16),
-          next_state, np.sign(reward), done])
-
-        step += 1
-        total_reward += reward
-        state = next_state
-
-        trainer.train(sess)
-        epoch += 1
-
-        if FLAGS.render == 'True':
-          env.render()
-        if done:
-          total_rewards.append(total_reward)
-
-          if total_reward > max_total_reward * 0.8 and FLAGS.saving:
-            saver.save(sess, os.path.join(folder, 'breakout'),
-              global_step=episode)
-
-          if total_reward > max_total_reward:
-            max_total_reward = total_reward
-
-          if episode % FLAGS.display_episode == 0:
-            loss = trainer.compute_loss(sess)
-            ave_q = trainer.ave_q_values(sess)
-
-            logger.info('%d. steps: %d, eps: %f, total: %f, max R: %f',
-              episode, step, epsilon, total_reward, max_total_reward)
-            logger.info('%d. ave Q: %f, loss: %f',
-              epoch, ave_q, loss)
-            logger.info('average reward: %f, max reward: %f',
-              sum(total_rewards) / len(total_rewards), max(total_rewards))
-            logger.info('actions: %s', str(actions))
-            actions = [0 for _ in range(env.action_size)]
-
-          if FLAGS.saving and \
-              episode % FLAGS.save_episode == 0:
-            saver.save(sess, os.path.join(folder, 'breakout'),
-              global_step=episode)
-
-          if FLAGS.saving and \
-              episode % FLAGS.summary_episode == 0:
-            summary = trainer.get_summary(sess)
-            summary_writer.add_summary(summary, global_step=episode)
-          break
-
-    if FLAGS.saving:
-      saver.save(sess, os.path.join(folder, 'breakout'),
-        global_step=episode)
+  def decay_epsilon(self):
+    self.epsilon = FLAGS.start_epsilon - \
+      (FLAGS.start_epsilon - FLAGS.min_epsilon) * self.epoch / \
+      FLAGS.decay_to_epoch
+    self.epsilon = max(FLAGS.min_epsilon, self.epsilon)
 
 
 def main(_):
-  env = HistoryFrameEnvironment(FLAGS.environment,
-    FLAGS.history_length, FLAGS.image_width, FLAGS.image_height)
-  run_episode(env)
+  trainer = Trainer()
+  trainer.train()
 
 
 if __name__ == '__main__':
