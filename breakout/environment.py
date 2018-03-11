@@ -75,6 +75,21 @@ def get_training_env(name, w, h):
   return env
 
 
+class FireLiveLoss(gym.Wrapper):
+  def __init__(self, env):
+    gym.Wrapper.__init__(self, env)
+    self.lives = 0
+
+  def step(self, action):
+    state, reward, done, info = self.env.step(action)
+    lives = info['ale.lives']
+    if lives < self.lives:
+      state, _, _, info = self.env.step(0)
+      state, _, _, info = self.env.step(1)
+    self.lives = lives
+    return state, reward, done, info
+
+
 class HistoryStatesEnv(gym.Wrapper):
   def __init__(self, env, history_size):
     gym.Wrapper.__init__(self, env)
@@ -98,7 +113,10 @@ class HistoryStatesEnv(gym.Wrapper):
 
 
 def get_test_env(name, w, h, history_size):
-  env = get_training_env(name, w, h)
+  env = gym.make(name)
+  env.seed((int(time.time())))
+  env = FireLiveLoss(env)
+  env = MapState(env, w, h)
   env = HistoryStatesEnv(env, history_size)
   return env
 
