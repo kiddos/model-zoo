@@ -7,7 +7,7 @@ int main(int argc, char** argv) {
   google::LogToStderr();
 
   QApplication app(argc, argv);
-  nerd::PredictionWindow window(nullptr);
+  nerd::PredictionWindow window(nullptr, "league.pb");
   window.show();
   return app.exec();
 }
