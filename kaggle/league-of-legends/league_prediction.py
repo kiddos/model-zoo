@@ -3,6 +3,7 @@ import numpy as np
 import os
 import logging
 import sqlite3
+import signal
 
 
 logging.basicConfig()
@@ -16,9 +17,10 @@ tf.app.flags.DEFINE_string('dbname', 'league.sqlite3', 'extracted data to load')
 
 # hyperparameter
 tf.app.flags.DEFINE_integer('embedding_size', 2, 'embedding size to use')
-tf.app.flags.DEFINE_float('lambda_reg', 1e-3, 'parameter for regularization')
+tf.app.flags.DEFINE_float('lambda_reg', 3e-3, 'parameter for regularization')
 tf.app.flags.DEFINE_float('learning_rate', 1e-4, 'learning rate to train')
 tf.app.flags.DEFINE_integer('max_epoch', 10000, 'max epoch to train')
+tf.app.flags.DEFINE_integer('batch_size', 512, 'batch size to train')
 
 tf.app.flags.DEFINE_integer('display_epoch', 100, 'epoch to display result')
 tf.app.flags.DEFINE_integer('summary_epoch', 10, 'epoch to save summary')
@@ -26,7 +28,6 @@ tf.app.flags.DEFINE_integer('summary_epoch', 10, 'epoch to save summary')
 
 def load_data(dbname, tablename):
   if os.path.isfile(dbname):
-    logger.info('loading %s', dbname)
     connection = sqlite3.connect(dbname)
     cursor = connection.cursor()
     cursor.execute("""SELECT * FROM %s;""" % (tablename))
@@ -110,7 +111,7 @@ class EmbeddedModel(object):
     })
     dataset = dataset.shuffle(buffer_size=1000)
     dataset = dataset.repeat()
-    dataset = dataset.batch(128)
+    dataset = dataset.batch(FLAGS.batch_size)
     iterator = dataset.make_initializable_iterator()
 
     config = tf.ConfigProto()
@@ -118,6 +119,19 @@ class EmbeddedModel(object):
     with tf.Session(config=config) as sess:
       logger.info('initializing variables...')
       sess.run(tf.global_variables_initializer())
+
+      def save_model():
+        logger.info('saving model...')
+        input_graph_def = tf.get_default_graph().as_graph_def()
+        output_graph_def = tf.graph_util.convert_variables_to_constants(
+          sess, input_graph_def, FLAGS.output_nodes.split(','))
+        with tf.gfile.GFile('league.pb', 'wb') as f:
+          f.write(output_graph_def.SerializeToString())
+
+      def handle_interrupt(signum, frame):
+        save_model()
+
+      signal.signal(signal.SIGINT, handle_interrupt)
 
       epoch = 0
       for epoch in range(FLAGS.max_epoch + 1):
@@ -145,9 +159,11 @@ class EmbeddedModel(object):
           self.champs: batch['champs'],
           self.match_result: batch['match_result'],
         })
+      save_model()
 
 
 def main():
+  logger.info('loading %s', FLAGS.dbname)
   train_data, train_label, champ_count = load_data(FLAGS.dbname, 'matches_train')
   valid_data, valid_label, _ = load_data(FLAGS.dbname, 'matches_valid')
   model = EmbeddedModel(champ_count)
