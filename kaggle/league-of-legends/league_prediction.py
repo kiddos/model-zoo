@@ -24,6 +24,7 @@ tf.app.flags.DEFINE_integer('batch_size', 512, 'batch size to train')
 
 tf.app.flags.DEFINE_integer('display_epoch', 100, 'epoch to display result')
 tf.app.flags.DEFINE_integer('summary_epoch', 10, 'epoch to save summary')
+tf.app.flags.DEFINE_string('output_nodes', 'output/prediction', 'output nodes')
 
 
 def load_data(dbname, tablename):
