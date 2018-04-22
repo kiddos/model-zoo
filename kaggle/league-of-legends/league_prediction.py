@@ -3,7 +3,7 @@ import numpy as np
 import os
 import logging
 import sqlite3
-import signal
+import sys
 
 
 logging.basicConfig()
@@ -16,8 +16,8 @@ tf.app.flags.DEFINE_bool('save', False, 'save model')
 tf.app.flags.DEFINE_string('dbname', 'league.sqlite3', 'extracted data to load')
 
 # hyperparameter
-tf.app.flags.DEFINE_integer('embedding_size', 2, 'embedding size to use')
-tf.app.flags.DEFINE_float('lambda_reg', 3e-3, 'parameter for regularization')
+tf.app.flags.DEFINE_integer('embedding_size', 3, 'embedding size to use')
+tf.app.flags.DEFINE_float('lambda_reg', 3e-4, 'parameter for regularization')
 tf.app.flags.DEFINE_float('learning_rate', 1e-4, 'learning rate to train')
 tf.app.flags.DEFINE_integer('max_epoch', 10000, 'max epoch to train')
 tf.app.flags.DEFINE_integer('batch_size', 512, 'batch size to train')
@@ -33,7 +33,6 @@ def load_data(dbname, tablename):
     cursor = connection.cursor()
     cursor.execute("""SELECT * FROM %s;""" % (tablename))
     raw_data = cursor.fetchall()
-
     raw_data = np.array(raw_data)
 
     cursor.execute("""SELECT count(id) FROM champs;""")
@@ -55,7 +54,9 @@ class EmbeddedModel(object):
     reg = 0
     var = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES)
     for v in var:
-      if len(v.get_shape().as_list()) > 1:
+      shape = v.get_shape().as_list()
+      if len(shape) > 1 and shape[0] != 140 and \
+          shape[1] != FLAGS.embedding_size:
         reg += tf.reduce_sum(tf.square(v))
 
     with tf.name_scope('loss'):
@@ -90,11 +91,11 @@ class EmbeddedModel(object):
       fc = tf.contrib.layers.flatten(fc)
 
       for _ in range(1):
-        fc = tf.contrib.layers.fully_connected(fc, 4,
+        fc = tf.contrib.layers.fully_connected(fc, 16,
           weights_initializer=init)
 
     with tf.name_scope('output'):
-      ow = tf.get_variable('ow', shape=[4, 2], initializer=init)
+      ow = tf.get_variable('ow', shape=[16, 2], initializer=init)
       ob = tf.get_variable('ob', shape=[2], initializer=tf.zeros_initializer())
       logits = tf.add(tf.matmul(fc, ow), ob, name='logits')
       outputs = tf.nn.softmax(logits, name='prediction')
@@ -121,46 +122,42 @@ class EmbeddedModel(object):
       logger.info('initializing variables...')
       sess.run(tf.global_variables_initializer())
 
-      def save_model():
+      try:
+        epoch = 0
+        for epoch in range(FLAGS.max_epoch + 1):
+          sess.run(iterator.initializer)
+
+          batch = sess.run(iterator.get_next())
+          if epoch % FLAGS.display_epoch == 0:
+            loss = sess.run(self.loss, feed_dict={
+              self.champs: batch['champs'],
+              self.match_result: batch['match_result'],
+            })
+
+            train_acc = sess.run(self.accuracy, feed_dict={
+              self.champs: batch['champs'],
+              self.match_result: batch['match_result'],
+            })
+            valid_acc = sess.run(self.accuracy, feed_dict={
+              self.champs: valid_data,
+              self.match_result: valid_label
+            })
+            logger.info('%d. loss: %f, train: %f, valid: %f',
+              epoch, loss, train_acc, valid_acc)
+
+          sess.run(self.train_ops, feed_dict={
+            self.champs: batch['champs'],
+            self.match_result: batch['match_result'],
+          })
+      except KeyboardInterrupt:
+        logger.info('interrupted')
+      finally:
         logger.info('saving model...')
         input_graph_def = tf.get_default_graph().as_graph_def()
         output_graph_def = tf.graph_util.convert_variables_to_constants(
           sess, input_graph_def, FLAGS.output_nodes.split(','))
         with tf.gfile.GFile('league.pb', 'wb') as f:
           f.write(output_graph_def.SerializeToString())
-
-      def handle_interrupt(signum, frame):
-        save_model()
-
-      signal.signal(signal.SIGINT, handle_interrupt)
-
-      epoch = 0
-      for epoch in range(FLAGS.max_epoch + 1):
-        sess.run(iterator.initializer)
-
-        batch = sess.run(iterator.get_next())
-        if epoch % FLAGS.display_epoch == 0:
-          loss = sess.run(self.loss, feed_dict={
-            self.champs: batch['champs'],
-            self.match_result: batch['match_result'],
-          })
-
-          train_acc = sess.run(self.accuracy, feed_dict={
-            self.champs: batch['champs'],
-            self.match_result: batch['match_result'],
-          })
-          valid_acc = sess.run(self.accuracy, feed_dict={
-            self.champs: valid_data,
-            self.match_result: valid_label
-          })
-          logger.info('%d. loss: %f, train: %f, valid: %f',
-            epoch, loss, train_acc, valid_acc)
-
-        sess.run(self.train_ops, feed_dict={
-          self.champs: batch['champs'],
-          self.match_result: batch['match_result'],
-        })
-      save_model()
 
 
 def main():
