@@ -278,6 +278,13 @@
      <layout class="QFormLayout" name="formLayout">
       <item row="0" column="0">
        <widget class="QLabel" name="label_11">
+        <property name="font">
+         <font>
+          <pointsize>14</pointsize>
+          <weight>75</weight>
+          <bold>true</bold>
+         </font>
+        </property>
         <property name="text">
          <string>Winning Team:</string>
         </property>
@@ -285,6 +292,13 @@
       </item>
       <item row="0" column="1">
        <widget class="QLabel" name="lbWinningTeam">
+        <property name="font">
+         <font>
+          <pointsize>14</pointsize>
+          <weight>75</weight>
+          <bold>true</bold>
+         </font>
+        </property>
         <property name="text">
          <string/>
         </property>
@@ -292,6 +306,14 @@
       </item>
       <item row="1" column="0">
        <widget class="QLabel" name="label_12">
+        <property name="font">
+         <font>
+          <pointsize>14</pointsize>
+          <weight>50</weight>
+          <italic>true</italic>
+          <bold>false</bold>
+         </font>
+        </property>
         <property name="text">
          <string>Probability:</string>
         </property>
@@ -299,6 +321,14 @@
       </item>
       <item row="1" column="1">
        <widget class="QLabel" name="lbProbability">
+        <property name="font">
+         <font>
+          <pointsize>14</pointsize>
+          <weight>50</weight>
+          <italic>true</italic>
+          <bold>false</bold>
+         </font>
+        </property>
         <property name="text">
          <string/>
         </property>
