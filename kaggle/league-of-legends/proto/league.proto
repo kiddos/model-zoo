@@ -1,0 +1,33 @@
+syntax = "proto3";
+
+package nerd;
+
+message Team {
+  int32 top = 1;
+  int32 jungle = 2;
+  int32 mid = 3;
+  int32 support = 4;
+  int32 adc = 5;
+}
+
+message ServerStatusRequest {
+}
+
+message ServerStatus {
+  bool ok = 1;
+}
+
+message Match {
+  Team blue = 1;
+  Team red = 2;
+}
+
+message MatchPrediction {
+  string winning_team = 1;
+  float probability = 2;
+}
+
+service LeagueMatchPrediction {
+  rpc GetServerStatus(ServerStatusRequest) returns (ServerStatus) {}
+  rpc Predict(Match) returns (MatchPrediction) {}
+}
