@@ -109,13 +109,19 @@ def main():
         batch_labels = train_labels[start:end, ...]
 
         if epoch % FLAGS.display_epoch == 0:
-          losses = sess.run([gan.g_loss, gan.d_loss], feed_dict={
+          losses = sess.run([gan.g_loss, gan.d_loss1, gan.d_loss2], feed_dict={
             gan.target_images: batch_images,
             gan.keep_prob: 1.0,
             gan.target_labels: batch_labels,
             gan.input_noise: np.random.randn(FLAGS.batch_size, 28, 28, 1),
           })
-          logger.info('%d. loss: %s', epoch, str(losses))
+          accu = sess.run(gan.accuracy, feed_dict={
+            gan.target_images: batch_images,
+            gan.keep_prob: 1.0,
+            gan.target_labels: batch_labels,
+            gan.input_noise: np.random.randn(FLAGS.batch_size, 28, 28, 1),
+          })
+          logger.info('%d. loss: %s, train: %f', epoch, str(losses), accu)
 
         # training
         if epoch % FLAGS.tau == 0:

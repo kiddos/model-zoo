@@ -53,6 +53,10 @@ class GAN(object):
       self.train_d = tf.train.AdamOptimizer(
         self.learning_rate).minimize(self.g_loss, var_list=d_vars)
 
+    with tf.name_scope('evaluation'):
+      self.accuracy = self._evaluate(self.outputs, self.target_labels)
+      tf.summary.scalar('train_accuracy', self.accuracy)
+
     with tf.name_scope('summary'):
       self.summary = tf.summary.merge_all()
 
@@ -179,6 +183,11 @@ class GAN(object):
       logits = tf.reshape(logits, [-1, 10], name='logits')
       outputs = tf.nn.sigmoid(logits)
     return logits, outputs
+
+  def _evaluate(self, prediction, labels):
+    eq = tf.cast(tf.equal(tf.cast(tf.argmax(prediction, axis=1), tf.int32),
+      labels), tf.float32)
+    return tf.reduce_mean(eq)
 
 
 class TestGAN(unittest.TestCase):
