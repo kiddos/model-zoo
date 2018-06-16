@@ -143,7 +143,7 @@ def main():
             gan.target_labels: batch_labels,
             gan.input_noise: np.random.randn(FLAGS.batch_size, 28, 28, 1),
           })
-          summary_writer.add_summary(summary_log)
+          summary_writer.add_summary(summary_log, global_step=epoch)
     except KeyboardInterrupt:
       logger.info('stopping...')
 
