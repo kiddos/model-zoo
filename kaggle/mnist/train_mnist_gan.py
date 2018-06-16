@@ -102,7 +102,7 @@ def main():
         end = min(index + FLAGS.batch_size, train_data_size)
 
         index += FLAGS.batch_size
-        if index > train_data_size: index = 0
+        if index >= train_data_size: index = 0
 
         batch_images = train_images[start:end, ...]
         batch_labels = train_labels[start:end, ...]
