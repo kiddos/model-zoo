@@ -45,7 +45,7 @@ def parse_data(raw_data):
   data = []
   label = []
   for entry in raw_data:
-    img = np.frombuffer(entry[0], dtype=np.uint8)
+    img = np.frombuffer(entry[0], dtype=np.uint8) / 255.0
     data.append(np.reshape(img, [28, 28, 1]))
     label.append(entry[1])
   return np.array(data), np.array(label)

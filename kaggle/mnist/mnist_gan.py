@@ -121,8 +121,8 @@ class GAN(object):
     with tf.name_scope('deconv4'):
       deconv = self._deconv(deconv, 128, 3, 1, training=training)
 
+    init = tf.variance_scaling_initializer()
     with tf.name_scope('conv5'):
-      init = tf.variance_scaling_initializer()
       conv1 = tf.layers.conv2d(deconv, 128, 3,
         activation=lambda x: tf.nn.leaky_relu(x, 0.1), padding='SAME',
         kernel_initializer=init)
@@ -136,11 +136,10 @@ class GAN(object):
       conv = self._block(conv, 256, training=training)
 
     with tf.name_scope('output'):
-      init = tf.random_normal_initializer(stddev=20.0)
       ow = tf.get_variable('ow', shape=[3, 3, 256, 1],
         initializer=init)
       ob = tf.get_variable('ob', shape=[1],
-        initializer=tf.constant_initializer(127))
+        initializer=tf.zeros_initializer())
       logits = tf.add(
         tf.nn.conv2d(conv, ow, strides=[1, 1, 1, 1], padding='SAME'), ob,
         name='logits')
