@@ -15,7 +15,7 @@ FLAGS = tf.app.flags.FLAGS
 # hyper parameters
 tf.app.flags.DEFINE_float('learning_rate', 1e-3, 'learning rate to train')
 tf.app.flags.DEFINE_integer('batch_size', 32, 'batch size to train')
-tf.app.flags.DEFINE_integer('max_epoch', 10000, 'max epoches to train')
+tf.app.flags.DEFINE_integer('max_epoch', 100000, 'max epoches to train')
 tf.app.flags.DEFINE_integer('decay_epoch', 10000,
   'epoches to decay learning rate')
 tf.app.flags.DEFINE_float('keep_prob', 0.9, 'keep prob for dropout')
