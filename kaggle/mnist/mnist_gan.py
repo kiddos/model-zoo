@@ -51,7 +51,7 @@ class GAN(object):
         self.learning_rate).minimize(self.g_loss, var_list=g_vars)
 
       self.train_d = tf.train.AdamOptimizer(
-        self.learning_rate).minimize(self.g_loss, var_list=d_vars)
+        self.learning_rate).minimize(self.d_loss, var_list=d_vars)
 
     with tf.name_scope('evaluation'):
       self.accuracy = self._evaluate(self.outputs, self.target_labels)
