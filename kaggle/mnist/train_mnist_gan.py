@@ -19,6 +19,7 @@ tf.app.flags.DEFINE_integer('max_epoch', 10000, 'max epoches to train')
 tf.app.flags.DEFINE_integer('decay_epoch', 10000,
   'epoches to decay learning rate')
 tf.app.flags.DEFINE_float('keep_prob', 0.9, 'keep prob for dropout')
+tf.app.flags.DEFINE_integer('tau', 10, 'training ratio')
 
 tf.app.flags.DEFINE_integer('display_epoch', 10, 'epoches to display result')
 tf.app.flags.DEFINE_integer('summary_epoch', 10, 'epoches to save summary')
@@ -117,7 +118,7 @@ def main():
           logger.info('%d. loss: %s', epoch, str(losses))
 
         # training
-        if epoch % 2 == 0:
+        if epoch % FLAGS.tau == 0:
           sess.run(gan.train_g, feed_dict={
             gan.target_images: batch_images,
             gan.keep_prob: FLAGS.keep_prob,
