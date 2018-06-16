@@ -21,7 +21,7 @@ tf.app.flags.DEFINE_integer('decay_epoch', 10000,
 tf.app.flags.DEFINE_float('keep_prob', 0.9, 'keep prob for dropout')
 
 tf.app.flags.DEFINE_integer('display_epoch', 10, 'epoches to display result')
-tf.app.flags.DEFINE_integer('summary_epoch', 10000, 'epoches to save summary')
+tf.app.flags.DEFINE_integer('summary_epoch', 10, 'epoches to save summary')
 tf.app.flags.DEFINE_integer('save_epoch', 1000, 'epoches to save model')
 tf.app.flags.DEFINE_string('db_path', './mnist.sqlite3', 'db to load')
 tf.app.flags.DEFINE_bool('saving', False, 'saving model')
@@ -117,7 +117,15 @@ def main():
           logger.info('%d. loss: %s', epoch, str(losses))
 
         # training
-        sess.run([gan.train_d, gan.train_g], feed_dict={
+        if epoch % 2 == 0:
+          sess.run(gan.train_g, feed_dict={
+            gan.target_images: batch_images,
+            gan.keep_prob: FLAGS.keep_prob,
+            gan.target_labels: batch_labels,
+            gan.input_noise: np.random.randn(FLAGS.batch_size, 28, 28, 1),
+          })
+
+        sess.run(gan.train_d, feed_dict={
           gan.target_images: batch_images,
           gan.keep_prob: FLAGS.keep_prob,
           gan.target_labels: batch_labels,
