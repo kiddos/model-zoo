@@ -80,7 +80,7 @@ class GAN(object):
     return deconv
 
   def _block(self, inputs, output_size, leak=0.1, training=True):
-    init = tf.variance_scaling_initializer()
+    init = tf.variance_scaling_initializer(2.0)
 
     conv = tf.layers.conv2d(inputs, output_size, 3,
       activation=lambda x: tf.nn.leaky_relu(x, leak), padding='SAME',
@@ -100,7 +100,7 @@ class GAN(object):
 
   def _down_sample(self, inputs, output_size, kernel_size,
       leak=0.1, training=True):
-    init = tf.variance_scaling_initializer()
+    init = tf.variance_scaling_initializer(2.0)
     conv = tf.layers.conv2d(inputs, output_size, kernel_size, strides=2,
       activation=lambda x: tf.nn.leaky_relu(x, leak), padding='SAME',
       kernel_initializer=init)
@@ -125,7 +125,7 @@ class GAN(object):
     with tf.name_scope('deconv4'):
       deconv = self._deconv(deconv, 128, 3, 1, training=training)
 
-    init = tf.variance_scaling_initializer()
+    init = tf.variance_scaling_initializer(2.0)
     with tf.name_scope('conv5'):
       conv1 = tf.layers.conv2d(deconv, 128, 3,
         activation=lambda x: tf.nn.leaky_relu(x, 0.1), padding='SAME',
@@ -151,7 +151,8 @@ class GAN(object):
 
   def _discriminator(self, input_images, training=True):
     with tf.name_scope('conv1'):
-      init = tf.random_normal_initializer(stddev=0.01)
+      init = tf.variance_scaling_initializer(2.0)
+      #  init = tf.random_normal_initializer(stddev=0.01)
       conv = tf.layers.conv2d(input_images, 32, 3,
         activation=lambda x: tf.nn.leaky_relu(x, 0.1), padding='SAME',
         kernel_initializer=init)
@@ -174,7 +175,7 @@ class GAN(object):
       conv = self._block(conv, 1024, training=training)
 
     with tf.name_scope('output'):
-      init = tf.variance_scaling_initializer()
+      init = tf.variance_scaling_initializer(2.0)
       ow = tf.get_variable('ow', shape=[7, 7, 1024, 10],
         initializer=init)
       ob = tf.get_variable('ob', shape=[10],
@@ -215,7 +216,7 @@ class TestGAN(unittest.TestCase):
     print(np.std(gen))
 
   def test_discriminator_outptt(self):
-    images = np.random.randint(0, 255, [1, 28, 28, 1])
+    images = np.random.rand(1, 28, 28, 1)
 
     logits, outputs = self.sess.run([self.gan.logits, self.gan.outputs],
       feed_dict={
