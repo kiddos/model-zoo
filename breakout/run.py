@@ -34,9 +34,9 @@ def load_graph():
 
 def main(_):
   env = get_test_env('BreakoutDeterministic-v0', 84, 84, 4)
-  if FLAGS.record:
-    env = gym.wrappers.Monitor(env, '/tmp/breakout-record',
-        video_callable=lambda episode_id: True)
+  #  if FLAGS.record:
+  #    env = gym.wrappers.Monitor(env, '/tmp/breakout-record',
+  #        video_callable=lambda episode_id: True)
 
   graph = load_graph()
   input_state = graph.get_tensor_by_name('import/state:0')

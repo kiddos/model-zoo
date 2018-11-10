@@ -60,9 +60,9 @@ class MapState(gym.ObservationWrapper):
     gym.ObservationWrapper.__init__(self, env)
     self.w, self.h = w, h
     self.observation_space = gym.spaces.Box(
-      low=0, high=255, shape=(self.h, self.w), dtype=np.uint8)
+      low=0, high=255, shape=(self.h, self.w))
 
-  def observation(self, obs):
+  def _observation(self, obs):
     return process_image(obs, self.w, self.h)
 
 
@@ -94,6 +94,9 @@ class HistoryStatesEnv(gym.Wrapper):
   def __init__(self, env, history_size):
     gym.Wrapper.__init__(self, env)
     self.history = deque(maxlen=history_size)
+
+  def observation(self, obs):
+    return self.env.observation(obs)
 
   def reset(self):
     state = self.env.reset()
