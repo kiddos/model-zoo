@@ -91,11 +91,11 @@ class EmbeddedModel(object):
       fc = tf.contrib.layers.flatten(fc)
 
       for _ in range(1):
-        fc = tf.contrib.layers.fully_connected(fc, 16,
+        fc = tf.contrib.layers.fully_connected(fc, 128,
           weights_initializer=init)
 
     with tf.name_scope('output'):
-      ow = tf.get_variable('ow', shape=[16, 2], initializer=init)
+      ow = tf.get_variable('ow', shape=[128, 2], initializer=init)
       ob = tf.get_variable('ob', shape=[2], initializer=tf.zeros_initializer())
       logits = tf.add(tf.matmul(fc, ow), ob, name='logits')
       outputs = tf.nn.softmax(logits, name='prediction')
