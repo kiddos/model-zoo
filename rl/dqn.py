@@ -20,10 +20,14 @@ class DQN(object):
     mask_q = tf.reduce_sum(o * q, axis=1)
     self.best_action = tf.argmax(q, axis=1)
 
+    tf.summary.scalar('q', tf.reduce_mean(mask_q))
+
     next_q = self.inference(self.next_state, 'target_dqn')
     target_q = tf.stop_gradient(tf.reduce_max(next_q, axis=1))
     target = tf.clip_by_value(self.reward, -1, 1) + \
       FLAGS.gamma * tf.cast(tf.logical_not(self.done), tf.float32) * target_q
+
+    tf.summary.scalar('target_q', tf.reduce_mean(target))
 
     with tf.name_scope('copy'):
       v1 = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, 'dqn')
@@ -34,9 +38,14 @@ class DQN(object):
 
     self.loss = tf.losses.huber_loss(target, mask_q, scope='loss',
       reduction=tf.losses.Reduction.MEAN)
+    tf.summary.scalar('loss', self.loss)
+
     with tf.name_scope('optimization'):
       optimizer = tf.train.AdamOptimizer(FLAGS.learning_rate)
       self.train_ops = optimizer.minimize(self.loss)
+
+    with tf.name_scope('summary'):
+      self.summary = tf.summary.merge_all()
 
   def _setup_inputs(self):
     self.state = tf.placeholder(dtype=tf.float32,
