@@ -10,6 +10,7 @@ from gym_wrapper import wrap_env
 from replay_buffer import ReplayBuffer
 from dqn import DQN
 from dqn import atari_model
+from data_collector import Collector
 
 
 FLAGS = tf.app.flags.FLAGS
@@ -17,7 +18,8 @@ tf.app.flags.DEFINE_bool('saving', False, 'saving model')
 tf.app.flags.DEFINE_integer('display_epoch', 100, 'epoches to display result')
 tf.app.flags.DEFINE_integer('save_epoch', 1000, 'epoches to save model')
 tf.app.flags.DEFINE_integer('summary_epoch', 10000, 'epoches to save summary')
-tf.app.flags.DEFINE_string('environment', 'Breakout-v0', 'epoches to save summary')
+tf.app.flags.DEFINE_string('environment', 'Breakout-v0', 'environment to train')
+tf.app.flags.DEFINE_integer('num_actions', 4, 'number of actions')
 
 # hyperparameter
 tf.app.flags.DEFINE_integer('batch_size', 32, 'batch size to train')
@@ -26,8 +28,8 @@ tf.app.flags.DEFINE_integer('max_epoch', 300000, 'max epoches to train')
 tf.app.flags.DEFINE_integer('copy_epoch', 100, 'max epoches to train')
 tf.app.flags.DEFINE_float('min_epsilon', 0.1, 'min epsilon for epsilon greedy')
 tf.app.flags.DEFINE_integer('input_size', 84, 'input size of image')
-tf.app.flags.DEFINE_integer('history_size', 4, 'input size of image')
-tf.app.flags.DEFINE_integer('replay_buffer_size', 1000000, 'batch size to train')
+tf.app.flags.DEFINE_integer('history_size', 4, 'history size')
+tf.app.flags.DEFINE_integer('replay_buffer_size', 1000000, 'replay buffer size')
 
 
 logging.basicConfig()
@@ -63,12 +65,21 @@ def run_episode(env, replay_buffer, policy):
 
 
 def main():
-  replay_buffer = ReplayBuffer(FLAGS.replay_buffer_size,
-    FLAGS.input_size, FLAGS.input_size)
+  input_shape = [FLAGS.input_size, FLAGS.input_size]
+  replay_buffer = ReplayBuffer(FLAGS.replay_buffer_size, input_shape,
+    FLAGS.history_size)
 
   env = wrap_env(gym.make(FLAGS.environment))
-  input_shape = [FLAGS.input_size, FLAGS.input_size, FLAGS.history_size]
-  dqn = DQN(input_shape, atari_model)
+  input_shape += [FLAGS.history_size]
+  dqn = DQN(input_shape, atari_model, FLAGS.num_actions)
+
+  collector = Collector(wrap_env(gym.make(FLAGS.environment)), replay_buffer)
+  logger.info('pre-loading replay buffer...')
+  collector.prepare()
+  logger.info('done.')
+
+  logger.info('start collecting asyn...')
+  collector.start()
 
   if FLAGS.saving:
     model_path = os.path.join(MODEL_PATH, FLAGS.environment)
@@ -84,16 +95,12 @@ def main():
     logger.info('initializing variables...')
     sess.run(tf.global_variables_initializer())
 
-    def predict(state):
-      return sess.run(dqn.best_action, feed_dict={
+    def greedy(state):
+      return sess.run(dqn.best_actions, feed_dict={
         dqn.state: state
       })[0]
 
-    def greedy(state):
-      return predict(state)
-
-    total_rewards = deque(maxlen=100)
-    for epoch in range(FLAGS.max_epoch):
+    for epoch in range(FLAGS.max_epoch + 1):
       if epoch % FLAGS.copy_epoch == 0:
         sess.run(dqn.copy)
 
@@ -104,7 +111,7 @@ def main():
         chance = np.random.uniform()
         if chance < epsilon:
           return env.action_space.sample()
-        return predict(state)
+        return greedy(state)
 
       if epoch == 0:
         logger.info('filling replay buffer...')
@@ -123,13 +130,10 @@ def main():
         dqn.done: dones,
       })
 
-      total_reward = run_episode(env, replay_buffer, epsilon_greedy)
-      total_rewards.append(total_reward)
-
       if epoch % FLAGS.display_epoch == 0:
         total_reward = run_episode(env, None, greedy)
         logger.info('%d. loss: %f, epsilon: %f, ave reward: %f, greedy: %f',
-          epoch, loss, epsilon, float(sum(total_rewards)) / len(total_rewards),
+          epoch, loss, epsilon, collector.get_average_rewards(),
           total_reward)
 
       if FLAGS.saving and epoch > 0 and epoch % FLAGS.save_epoch == 0:
