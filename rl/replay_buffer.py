@@ -6,11 +6,10 @@ from gym_wrapper import get_breakout_env
 
 
 class ReplayBuffer(object):
-  HISTORY_SIZE = 4
-
-  def __init__(self, buffer_size, w, h):
+  def __init__(self, buffer_size, input_shape, history_size, datatype=np.uint8):
     self.buffer_size = buffer_size
-    self.states = np.zeros(shape=[buffer_size, h, w], dtype=np.uint8)
+    self.history_size = history_size
+    self.states = np.zeros(shape=[buffer_size] + input_shape, dtype=datatype)
     self.actions = np.zeros(shape=[buffer_size], dtype=np.int32)
     self.dones = np.zeros(shape=[buffer_size], dtype=np.bool)
     self.rewards = np.zeros(shape=[buffer_size], dtype=np.float32)
@@ -31,24 +30,30 @@ class ReplayBuffer(object):
     if not self.ready():
       return None
 
-    i = np.random.randint(self.HISTORY_SIZE, self.current_size - 1)
+    i = np.random.randint(self.history_size, self.current_size - 1)
+
     a = self.actions[i]
     d = self.dones[i]
     r = self.rewards[i]
 
     s = [self.states[i]]
     p = False
-    for n in range(i - 1, i - self.HISTORY_SIZE - 1, -1):
+    for n in range(i - 1, i - self.history_size - 1, -1):
       p = p or self.dones[n]
       if p:
         s = [np.zeros_like(s[0])] + s
       else:
         s = [self.states[n, ...]] + s
-    s = np.stack(s, axis=2)
-    return s[:, :, :self.HISTORY_SIZE], s[:, :, 1:], a, r, d
+
+    if len(s[0].shape) == 2:
+      s = np.stack(s, axis=2)
+      return s[:, :, :self.history_size], s[:, :, 1:], a, r, d
+    else:
+      s = np.stack(s, axis=1)
+      return np.squeeze(s[:, :self.history_size]), np.squeeze(s[:, 1:]), a, r, d
 
   def ready(self):
-    return self.current_size >= self.HISTORY_SIZE
+    return self.current_size >= self.history_size
 
   def next(self, batch_size):
     states = []
