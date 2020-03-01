@@ -16,3 +16,6 @@
 *.index
 **/checkpoint
 **/summary
+
+models
+checkpoint
