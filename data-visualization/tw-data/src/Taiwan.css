@@ -1,0 +1,28 @@
+.map {
+  width: 100%;
+}
+
+.location {
+  fill: #898989;
+  stroke: #000000;
+  transition: all 0.4s;
+}
+
+.hover {
+  fill: #9E9E9E;
+}
+
+.info {
+  background-color: rgba(0, 0, 0, 0.6);
+  color: white;
+  padding: 10px;
+}
+
+h4 {
+  margin: 0;
+  padding: 0;
+}
+
+svg {
+  border: 1px solid rgba(0,0,0,0.3);
+}
