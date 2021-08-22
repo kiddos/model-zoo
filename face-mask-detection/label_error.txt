@@ -1,0 +1,16 @@
+maksssksksss633.xml
+original
+<bndbox>
+    <xmin>269</xmin>
+    <ymin>138</ymin>
+    <xmax>324</xmax>
+    <ymax>190</ymax>
+</bndbox>
+
+corrected
+<bndbox>
+    <xmin>176</xmin>
+    <ymin>143</ymin>
+    <xmax>219</xmax>
+    <ymax>190</ymax>
+</bndbox>
