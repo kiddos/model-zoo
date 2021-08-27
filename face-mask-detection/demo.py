@@ -42,7 +42,10 @@ def display_class(c):
 def main():
   setup_gpu()
 
-  model = load_model('./version4.1')
+  #  model = load_model('./version4.1')
+  #  model = load_model('./version5.1')
+  #  model = load_model('./version6.1')
+  model = load_model('./version7.1')
 
   cap = cv2.VideoCapture(0)
   if not cap.isOpened():
@@ -57,9 +60,9 @@ def main():
     rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
     resized = cv2.resize(rgb, [IMAGE_SIZE, IMAGE_SIZE])
     img_tensor = np.reshape(resized, [1, IMAGE_SIZE, IMAGE_SIZE, 3]).astype(np.float32)
-    prediction = model(img_tensor)
+    prediction = model(img_tensor, training=False)
     for row in prediction[0]:
-      if row[0] > 0.8:
+      if row[0] >= 0.8:
         y1 = int(row[1] * frame_size[0])
         x1 = int(row[2] * frame_size[1])
         y2 = int(row[3] * frame_size[0])
@@ -67,7 +70,8 @@ def main():
         c = np.argmax(row[5:])
         text, color = display_class(c)
         cv2.rectangle(frame, (x1, y1), (x2, y2), color, 1)
-        image = cv2.putText(frame, text, (x1, y1), FONT,  1, color, 2, cv2.LINE_AA)
+        display_text = '{}: {:2.2}'.format(text, row[0])
+        cv2.putText(frame, display_text, (x1, y1), FONT, 1, color, 2, cv2.LINE_AA)
 
     cv2.imshow('preview', frame)
     key = cv2.waitKey(6) & 0xFF
