@@ -6,7 +6,8 @@ import tensorflow as tf
 import tensorflow.keras as keras
 
 
-IMAGE_SIZE = 300
+#  IMAGE_SIZE = 300
+IMAGE_SIZE = 320
 FONT = cv2.FONT_HERSHEY_SIMPLEX
 
 
@@ -45,7 +46,8 @@ def main():
   #  model = load_model('./version4.1')
   #  model = load_model('./version5.1')
   #  model = load_model('./version6.1')
-  model = load_model('./version7.1')
+  #  model = load_model('./version7.1')
+  model = load_model('./version8.1')
 
   cap = cv2.VideoCapture(0)
   if not cap.isOpened():
