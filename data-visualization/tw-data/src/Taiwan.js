@@ -8,11 +8,12 @@ import { withStyles } from '@material-ui/core/styles';
 
 import { toL, toC } from './coordinate';
 import { getRainData } from './rain';
+import { getTaiwanColors } from './coloring';
 import './Taiwan.css';
 
 
 const Location = props => {
-  const { location } = props;
+  const { location, color } = props;
   const [hover, setHover] = React.useState(false);
   const { id, name, path } = location;
 
@@ -22,6 +23,8 @@ const Location = props => {
 	      id={id}
 	      name={name}
 	      d={path}
+        fill={color ? color : '#898989'}
+        stroke="#000000"
 	      className={classNames('location', { hover })}
 	      onMouseEnter={() => setHover(true)}
 	      onMouseLeave={() => setHover(false)}>
@@ -91,7 +94,7 @@ const Record = props => {
           cx={x}
           cy={y}
           r={size}
-          fill="#3B9BFA"
+          fill="#BBBBBB"
           stroke="#000"/>
       </RecordTooltip>
     </React.Fragment>
@@ -107,6 +110,7 @@ class Taiwan extends React.Component {
       y: 0,
       records: [],
       debug: false,
+      showRecords: true,
     }
   }
 
@@ -146,9 +150,15 @@ class Taiwan extends React.Component {
     this.setState({ debug: !this.state.debug });
   }
 
+  handleShowRecord = () => {
+    this.setState({ showRecords: !this.state.showRecords });
+  }
+
   render() {
     const { locations, label, viewBox } = TaiwanMap;
-    const { records, city, town, debug } = this.state;
+    const { records, city, town, debug, showRecords } = this.state;
+    const colors = getTaiwanColors();
+
     return (
       <div className="map-container" onMouseMove={this.handleMouse}>
         <div className="map">
@@ -156,10 +166,10 @@ class Taiwan extends React.Component {
 	          xmlns="http://www.w3.org/2000/svg"
 	          viewBox={viewBox}
 	          aria-label={label}>
-	          {locations.map(location => <Location key={location.id} location={location}/>)}
-	          {records.slice(0, 1000).map((record, index) => (
+	          {locations.map(location => <Location key={location.id} location={location} color={colors[location.id]}/>)}
+	          {showRecords && records.slice(0, 1000).map((record, index) => (
 	            <Record key={index} record={record}/>
-	          ))}
+            ))}
           </svg>
         </div>
         <div className="info">
@@ -187,6 +197,15 @@ class Taiwan extends React.Component {
                 onChange={this.handleDebug}>debug</Switch>
             }
             label="debug"/>
+          <FormControlLabel
+            control={
+              <Switch
+                checked={showRecords}
+                variant="contained"
+                color="primary"
+                onChange={this.handleShowRecord}>Show Records</Switch>
+            }
+            label="show records"/>
         </div>
       </div>
     );

@@ -3,13 +3,11 @@
 }
 
 .location {
-  fill: #898989;
-  stroke: #000000;
   transition: all 0.4s;
 }
 
 .hover {
-  fill: #9E9E9E;
+  opacity: 0.8;
 }
 
 .info {
