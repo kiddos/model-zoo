@@ -4,5 +4,8 @@
 *.zip
 
 *.h5
+*.pb
+*/variables
+*/assets
 
 saved_models
