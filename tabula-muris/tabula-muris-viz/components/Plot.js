@@ -3,12 +3,14 @@ import Plot from 'react-plotly.js';
 const COLORS = [
   '#AF5FFF',
   '#5FAAFF',
-  '#7CD582',
+  '#D17F27',
   '#E9A95C',
   '#F35D5D',
   '#7DE2AF',
   '#E4E723',
   '#5E46D1',
+  '#BCD572',
+  '#CC326A',
 ];
 
 export default function PlotComponent({ dataset, axis, classLabel, title }) {
