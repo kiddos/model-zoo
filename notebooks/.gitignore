@@ -9,3 +9,7 @@
 */assets
 
 saved_models
+
+*.json
+*.pt
+*.bin
